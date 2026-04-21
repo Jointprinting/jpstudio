@@ -1,220 +1,1879 @@
 <!DOCTYPE html>
-<html dir="ltr" mozdisallowselectionprint>
-
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <meta name="google" content="notranslate">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JP Mockup Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
-    <link rel="shortcut icon" href="#">
+<!-- Dependencies via CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 
-    <title>PDF Mockup Generator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <link rel="stylesheet" href="./src/style.css">
+:root {
+  --bg: #0d0d0d;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --surface3: #242424;
+  --border: #2a2a2a;
+  --border2: #333;
+  --accent: #e8ff47;
+  --accent2: #c8e020;
+  --text: #f0f0f0;
+  --text2: #888;
+  --text3: #555;
+  --danger: #ff4444;
+  --success: #44ff88;
+  --radius: 6px;
+  --font-mono: 'DM Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+}
 
-    <script src="./node_modules/pdfjs-dist/build/pdf.mjs" type="module"></script>
-    <script src="./node_modules/pdfjs-dist/build/pdf.worker.mjs" type="module"></script>
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* ── Layout ─────────────────────────────────────── */
+#app {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+  gap: 0;
+}
+
+/* ── Header ─────────────────────────────────────── */
+#header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  gap: 16px;
+}
+
+#header .logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.5px;
+  color: var(--accent);
+}
+
+#header .logo span { color: var(--text2); font-weight: 400; }
+
+#header .tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 20px;
+}
+
+#header .tab {
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition: all 0.15s;
+  border: none;
+  background: none;
+}
+
+#header .tab:hover { color: var(--text); background: var(--surface2); }
+#header .tab.active { color: var(--accent); background: var(--surface3); }
+
+#header .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* ── Left Panel ─────────────────────────────────── */
+#left-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+#left-panel::-webkit-scrollbar { width: 4px; }
+#left-panel::-webkit-scrollbar-track { background: transparent; }
+#left-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.panel-section {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+
+.panel-section-title {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 12px;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+/* ── Center Canvas ──────────────────────────────── */
+#canvas-area {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: auto;
+  padding: 20px;
+  gap: 16px;
+  position: relative;
+}
+
+#canvas-area::-webkit-scrollbar { width: 6px; height: 6px; }
+#canvas-area::-webkit-scrollbar-track { background: transparent; }
+#canvas-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+#pdf-canvas-wrapper {
+  position: relative;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#pdf-canvas {
+  display: block;
+  max-width: 100%;
+}
+
+#canvas-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#logo-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+#logo-editor-overlay.open { display: flex; }
+
+#logo-editor-modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 90vw;
+}
+
+#logo-editor-modal h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+#logo-editor-canvas { border-radius: 4px; display: block; }
+
+#logo-editor-modal .modal-actions { display: flex; gap: 8px; }
+
+/* ── Right Panel ─────────────────────────────────── */
+#right-panel {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+#right-panel::-webkit-scrollbar { width: 4px; }
+#right-panel::-webkit-scrollbar-track { background: transparent; }
+#right-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── Form Elements ──────────────────────────────── */
+.field {
+  margin-bottom: 10px;
+}
+
+.field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 4px;
+  letter-spacing: 0.03em;
+}
+
+.field input[type="text"],
+.field input[type="number"],
+.field select,
+.field textarea {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+}
+
+.field select option { background: var(--surface3); }
+
+/* ── Image Upload ───────────────────────────────── */
+.img-upload-zone {
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.img-upload-zone:hover { border-color: var(--accent); background: rgba(232,255,71,0.03); }
+.img-upload-zone.has-image { border-style: solid; border-color: var(--accent); }
+
+.img-upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.img-upload-zone .thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
+.img-upload-zone .upload-text { font-size: 11px; color: var(--text2); }
+.img-upload-zone .upload-text strong { display: block; color: var(--text); font-size: 12px; }
+
+.img-actions { display: flex; gap: 4px; margin-top: 4px; }
+
+/* ── Color Swatches ─────────────────────────────── */
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.color-swatch-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.color-swatch-item input[type="color"] {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  background: var(--surface3);
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.color-swatch-item input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+.color-swatch-item input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+.swatch-hex {
+  font-size: 10px;
+  color: var(--text3);
+  width: 54px;
+  font-family: var(--font-mono);
+}
+
+.add-swatch-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed var(--border2);
+  background: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.add-swatch-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Buttons ────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #0d0d0d;
+  font-weight: 500;
+}
+
+.btn-primary:hover { background: var(--accent2); }
+
+.btn-secondary {
+  background: var(--surface3);
+  color: var(--text);
+  border: 1px solid var(--border2);
+}
+
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-ghost {
+  background: none;
+  color: var(--text2);
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+
+.btn-danger {
+  background: none;
+  color: var(--danger);
+  border: 1px solid transparent;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.btn-danger:hover { background: rgba(255,68,68,0.1); border-color: var(--danger); }
+
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-icon { padding: 6px; }
+
+/* ── Page Navigator ─────────────────────────────── */
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-badge {
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  min-width: 70px;
+  text-align: center;
+}
+
+.page-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.page-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.page-dot.active { background: var(--accent); }
+
+/* ── Library Tab ─────────────────────────────────── */
+#library-view {
+  display: none;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+#library-view.active { display: block; }
+
+.library-section { margin-bottom: 28px; }
+
+.library-section-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.library-section-title .count {
+  font-size: 10px;
+  background: var(--surface3);
+  color: var(--text2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+}
+
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.asset-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.asset-card:hover { border-color: var(--accent); }
+
+.asset-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  display: block;
+  padding: 6px;
+  background: var(--surface3);
+}
+
+.asset-card .asset-name {
+  padding: 5px 6px;
+  font-size: 10px;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-card .asset-del {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background: rgba(0,0,0,0.7);
+  border: none;
+  border-radius: 3px;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.asset-card:hover .asset-del { opacity: 1; }
+.asset-card .asset-del:hover { color: var(--danger); }
+
+.saved-mockup-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 6px;
+}
+
+.saved-mockup-card:hover { border-color: var(--accent); }
+
+.saved-mockup-card .mockup-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--surface3);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.saved-mockup-card .mockup-info { flex: 1; min-width: 0; }
+.saved-mockup-card .mockup-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.saved-mockup-card .mockup-date { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.saved-mockup-card .mockup-actions { display: flex; gap: 4px; }
+
+/* ── Toast ──────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  top: 60px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text);
+  animation: slideIn 0.2s ease;
+  max-width: 300px;
+}
+
+.toast.success { border-color: var(--success); color: var(--success); }
+.toast.error { border-color: var(--danger); color: var(--danger); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Loading ────────────────────────────────────── */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(13,13,13,0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(2px);
+}
+
+#loading-overlay.active { display: flex; }
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Misc ───────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text3);
+  padding: 24px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tag {
+  display: inline-block;
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--text2);
+}
+
+.template-select-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.template-option {
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 11px;
+  background: none;
+  color: var(--text2);
+}
+
+.template-option:hover { border-color: var(--text2); color: var(--text); }
+.template-option.active { border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.05); }
+
+.template-option .tpl-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* ── Studio View ─────────────────────────────────── */
+#studio-view {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-column: 1 / -1;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+}
+
+#studio-view.hidden { display: none; }
+#library-view-wrapper { display: none; grid-column: 1 / -1; height: calc(100vh - 52px); overflow: hidden; }
+#library-view-wrapper.active { display: block; }
+
+</style>
 </head>
+<body>
 
-<body tabindex="1">
-
-    <script src="./src/pdf_render.mjs" type="module"></script>
-
-    <div class="container">
-        <div class="container-item" id="canvas-container">
-            <canvas id="pdf-canvas"></canvas>
-        </div>
-
-        <div class="container-item" id="form-container">
-            <form id="page-info-form">
-                <div class="page-counter">
-                    <label class="main-label">Current Page</label>
-                    <div class="page-counter-row">
-                        <button id="decrPage">&larr;</button>
-                        <button id="incrPage">&rarr;</button>
-                    </div>
-                    <div class="page-counter-row">
-                        <label class="sub-label">Page Editing</label>
-                        <input type="text" id="current-page-input" value="1" autocomplete="off" readonly>
-                    </div>
-                    <div class="page-counter-row">
-                        <label class="sub-label" id="page-count-label">Total Pages: 1</label>
-                    </div>
-                    <div class="page-counter-row">
-                        <button form="page-info-form" id="add-page-button" type="submit" name="action"
-                            value="addPage">Add Page</button>
-                    </div>
-                    <div class="page-counter-row">
-                        <button form="page-info-form" id="remove-page-button" type="submit" name="action"
-                            value="removePage">Remove
-                            Page</button>
-                        <input type="text" id="remove-page-input" autocomplete="off">
-                    </div>
-                </div>
-
-                <label class="sub-label" for="subtitle">Current Page Type</label>
-                <select id="currentPageType" autocomplete="off">
-                    <option value="template1" autocomplete="off">Template 1</option>
-                    <option value="template2" autocomplete="off">Template 2</option>
-                </select>
-                <button form="page-info-form" type="submit" name="action" value="updateCurrentPage">Update Current
-                    Page Type</button>
-            </form>
-
-            <div class="form-container" id="pdf-form-container-1">
-                <form class="pdf-form" id="pdf-form-1">
-                    <label class="main-label" for="title">Title</label>
-                    <input name="title" id="title" title="title" type="text">
-
-                    <label class="main-label" for="subtitle">SubTitle</label>
-                    <input name="subtitle" id="subtitle" subtitle="subtitle" type="text">
-
-                    <label class="main-label">Blanks and Logos</label>
-                    <label class="sub-label">Blank Front</label>
-                    <div class="image-input-group">
-                        <input type="file" id="frontBlankImage1" name="frontBlankImage"
-                            accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="frontBlankImgClear1">remove
-                            image</button>
-                    </div>
-                    <label class="sub-label">Logo Front</label>
-                    <div class="image-input-group">
-                        <input type="file" id="frontLogoImage1" name="frontLogoImage" accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="shirtFrontLogoClear1">remove
-                            image</button>
-                    </div>
-                    <label class="sub-label">Blank Back</label>
-                    <div class="image-input-group">
-                        <input type="file" id="backBlankImage1" name="backBlankImage" accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="backBlankImgClear1">remove
-                            image</button>
-                    </div>
-                    <label class="sub-label">Logo Back</label>
-                    <div class="image-input-group">
-                        <input type="file" id="backLogoImage1" name="backLogoImage" accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="shirtBackLogoClear1">remove
-                            image</button>
-                    </div>
-
-                    <label class="main-label">Shirt Front</label>
-                    <label class="sub-label" for="printTypeFront1">Print Type</label>
-                    <input name="printTypeFront1" id="printTypeFront1" subtitle="printTypeFront1" type="text">
-
-                    <label class="sub-label" for="printDimsFront1">Dimensions</label>
-                    <input name="printDimsFront1" id="printDimsFront1" subtitle="printDimsFront1" type="text">
-
-                    <label class="sub-label" for="printLocFront1">Print Location</label>
-                    <input name="printLocFront1" id="printLocFront1" subtitle="printLocFront1" type="text">
-
-                    <label class="main-label">Shirt Back</label>
-                    <label class="sub-label" for="printTypeBack1">Print Type</label>
-                    <input name="printTypeBack1" id="printTypeBack1" subtitle="printTypeBack1" type="text">
-
-                    <label class="sub-label" for="printDimsBack1">Dimensions</label>
-                    <input name="printDimsBack1" id="printDimsBack1" subtitle="printDimsBack1" type="text">
-
-                    <label class="sub-label" for="printLocBack1">Print Location</label>
-                    <input name="printLocBack1" id="printLocBack1" subtitle="printLocBack1" type="text">
-
-                    <label class="main-label">Front Logo</label>
-                    <label class="sub-label">Colors</label>
-                    <div class="color-container">
-                        <input class="color-input" type="text" id="fcolor1" name="color1" placeholder="#FF0000"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor2" name="color2"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor3" name="color3"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor4" name="color4"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                    </div>
-                    <div class="color-container">
-                        <input class="color-input" type="text" id="fcolor5" name="color5"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor6" name="color6"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor7" name="color7"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="fcolor8" name="color8"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                    </div>
-
-                    <label class="main-label">Back Logo</label>
-                    <label class="sub-label">Colors</label>
-                    <div class="color-container">
-                        <input class="color-input" type="text" id="bcolor1" name="color1" placeholder="#FF0000"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor2" name="color2"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor3" name="color3"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor4" name="color4"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                    </div>
-                    <div class="color-container">
-                        <input class="color-input" type="text" id="bcolor5" name="color5"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor6" name="color6"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor7" name="color7"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                        <input class="color-input" type="text" id="bcolor8" name="color8"
-                            pattern="^#?[0-9A-Fa-f]{6}$" />
-                    </div>
-
-                    <label class="main-label" for="mockupNum">Mockup Number</label>
-                    <input id="mockupNum" name="mockupNum" title="mockupNum" type="text">
-
-                    <label class="main-label" for="pdfName1">PDF Output File Name</label>
-                    <input id="pdfName1" name="pdfName1" title="pdfName1" type="text">
-                </form>
-            </div>
-
-            <div class="form-container" id="pdf-form-container-2">
-                <form class="pdf-form" id="pdf-form-2">
-                    <label class="sub-label">Blank</label>
-                    <div class="image-input-group">
-                        <input type="file" id="frontBlankImage2" name="frontBlankImage"
-                            accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="frontBlankImgClear2">remove
-                            image</button>
-                    </div>
-                    <label class="sub-label">Logo</label>
-                    <div class="image-input-group">
-                        <input type="file" id="frontLogoImage2" name="frontLogoImage" accept="image/png, image/jpeg" />
-                        <button type="submit" name="action" value="clearImg" id="shirtFrontLogoClear2">remove
-                            image</button>
-                    </div>
-                    <label class="sub-label" for="printTypeFront2">Print Type</label>
-                    <input name="printTypeFront2" id="printTypeFront2" subtitle="printTypeFront2" type="text">
-
-                    <label class="sub-label" for="printDimsFront2">Dimensions</label>
-                    <input name="printDimsFront2" id="printDimsFront2" subtitle="printDimsFront2" type="text">
-
-                    <label class="sub-label" for="printLocFront2">Print Location</label>
-                    <input name="printLocFront2" id="printLocFront2" subtitle="printLocFront2" type="text">
-
-                    <label class="main-label" for="pdfName2">PDF Output File Name</label>
-                    <input id="pdfName2" name="pdfName2" title="pdfName2" type="text">
-                </form>
-            </div>
-        </div>
-
-        <div class="container-item" id="form-buttons">
-            <button form="pdf-form-1" type="submit" name="action" value="updatePdf">Update Mockup</button>
-            <button form="pdf-form-1" type="submit" name="action" value="resetDefaults">Reset Defaults</button>
-            <button form="pdf-form-1" type="submit" name="action" value="exportPdf">Export Pdf</button>
-            <button form="pdf-form-1" type="submit" name="action" value="clearForm">Clear Form</button>
-            <button form="pdf-form-1" type="submit" name="action" value="togglePrintPreview">Toggle Print
-                Preview</button>
-            <button form="pdf-form-1" type="submit" name="action" value="adjustFrontLogo" id="afl-button">Adjust Front
-                Logo</button>
-            <button form="pdf-form-1" type="submit" name="action" value="adjustBackLogo" id="abl-button">Adjust Back
-                Logo</button>
-        </div>
+<div id="app">
+  <!-- HEADER -->
+  <header id="header">
+    <div class="logo">JP <span>MOCKUP STUDIO</span></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('studio')">Studio</button>
+      <button class="tab" onclick="switchTab('library')">Library</button>
     </div>
-    <div id="toast-container" aria-live="polite" style="position:fixed;top:1rem;right:1rem;z-index:9999;"></div>
+    <div class="actions">
+      <button class="btn btn-secondary btn-sm" id="save-mockup-btn" onclick="saveMockupToLibrary()">💾 Save</button>
+      <button class="btn btn-primary btn-sm" onclick="exportPdf()">↓ Export PDF</button>
+    </div>
+  </header>
 
+  <!-- STUDIO VIEW -->
+  <div id="studio-view">
+    <!-- LEFT PANEL -->
+    <div id="left-panel">
+      <!-- Page Management -->
+      <div class="panel-section">
+        <div class="panel-section-title">Pages</div>
+        <div class="page-nav" style="margin-bottom:10px;">
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="changePage(-1)">←</button>
+          <div class="page-badge" id="page-badge">Page 1 / 1</div>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="changePage(1)">→</button>
+        </div>
+        <div class="page-dots" id="page-dots"></div>
+        <div class="row2" style="margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="addPage()">+ Add Page</button>
+          <button class="btn btn-danger btn-sm" onclick="removePage()">✕ Remove</button>
+        </div>
+      </div>
+
+      <!-- Template -->
+      <div class="panel-section">
+        <div class="panel-section-title">Template</div>
+        <div class="template-select-grid">
+          <button class="template-option active" id="tpl-btn-1" onclick="setTemplate(1)">
+            <span class="tpl-icon">👕</span>
+            Front + Back
+          </button>
+          <button class="template-option" id="tpl-btn-2" onclick="setTemplate(2)">
+            <span class="tpl-icon">🧢</span>
+            Single Item
+          </button>
+        </div>
+      </div>
+
+      <!-- Header Info (Template 1 only) -->
+      <div class="panel-section" id="header-fields">
+        <div class="panel-section-title">Header Info</div>
+        <div class="field">
+          <label>Title</label>
+          <input type="text" id="f-title" placeholder="Client Name" oninput="liveUpdate()" />
+        </div>
+        <div class="field">
+          <label>Subtitle</label>
+          <input type="text" id="f-subtitle" placeholder="Project / Order Details" oninput="liveUpdate()" />
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Mockup #</label>
+            <input type="text" id="f-mockupnum" placeholder="#00001" oninput="liveUpdate()" />
+          </div>
+          <div class="field">
+            <label>PDF Filename</label>
+            <input type="text" id="f-pdfname" placeholder="mockup.pdf" oninput="liveUpdate()" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER CANVAS AREA -->
+    <div id="canvas-area">
+      <div id="canvas-toolbar">
+        <button class="btn btn-ghost btn-sm" onclick="togglePrintPreview()">👁 Toggle Preview</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetCurrentPage()">↺ Reset Page</button>
+      </div>
+      <div id="pdf-canvas-wrapper">
+        <canvas id="pdf-canvas"></canvas>
+        <div id="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div id="right-panel">
+      <!-- Shirt Images -->
+      <div class="panel-section">
+        <div class="panel-section-title">Garment Images</div>
+
+        <div class="field">
+          <label>Blank Front</label>
+          <div class="img-upload-zone" id="zone-front-blank">
+            <input type="file" accept="image/png,image/jpeg" onchange="handleImageUpload(event,'frontBlank')" />
+            <div id="thumb-front-blank" style="display:none"><img class="thumb" id="img-front-blank" /></div>
+            <div class="upload-text" id="text-front-blank"><strong>Click to upload</strong>PNG or JPG</div>
+          </div>
+          <div class="img-actions">
+            <button class="btn btn-ghost btn-sm" onclick="useFromLibrary('frontBlank')">📁 Library</button>
+            <button class="btn btn-danger" onclick="clearImage('frontBlank')">Remove</button>
+          </div>
+        </div>
+
+        <div class="field" id="field-back-blank">
+          <label>Blank Back</label>
+          <div class="img-upload-zone" id="zone-back-blank">
+            <input type="file" accept="image/png,image/jpeg" onchange="handleImageUpload(event,'backBlank')" />
+            <div id="thumb-back-blank" style="display:none"><img class="thumb" id="img-back-blank" /></div>
+            <div class="upload-text" id="text-back-blank"><strong>Click to upload</strong>PNG or JPG</div>
+          </div>
+          <div class="img-actions">
+            <button class="btn btn-ghost btn-sm" onclick="useFromLibrary('backBlank')">📁 Library</button>
+            <button class="btn btn-danger" onclick="clearImage('backBlank')">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logos -->
+      <div class="panel-section">
+        <div class="panel-section-title">Logos</div>
+
+        <div class="field">
+          <label>Front Logo</label>
+          <div class="img-upload-zone" id="zone-front-logo">
+            <input type="file" accept="image/png,image/jpeg" onchange="handleImageUpload(event,'frontLogo')" />
+            <div id="thumb-front-logo" style="display:none"><img class="thumb" id="img-front-logo" /></div>
+            <div class="upload-text" id="text-front-logo"><strong>Click to upload</strong>PNG or JPG</div>
+          </div>
+          <div class="img-actions">
+            <button class="btn btn-ghost btn-sm" onclick="useFromLibrary('frontLogo')">📁 Library</button>
+            <button class="btn btn-ghost btn-sm" onclick="openLogoEditor('front')">✏️ Position</button>
+            <button class="btn btn-danger" onclick="clearImage('frontLogo')">Remove</button>
+          </div>
+        </div>
+
+        <div class="field" id="field-back-logo">
+          <label>Back Logo</label>
+          <div class="img-upload-zone" id="zone-back-logo">
+            <input type="file" accept="image/png,image/jpeg" onchange="handleImageUpload(event,'backLogo')" />
+            <div id="thumb-back-logo" style="display:none"><img class="thumb" id="img-back-logo" /></div>
+            <div class="upload-text" id="text-back-logo"><strong>Click to upload</strong>PNG or JPG</div>
+          </div>
+          <div class="img-actions">
+            <button class="btn btn-ghost btn-sm" onclick="useFromLibrary('backLogo')">📁 Library</button>
+            <button class="btn btn-ghost btn-sm" onclick="openLogoEditor('back')">✏️ Position</button>
+            <button class="btn btn-danger" onclick="clearImage('backLogo')">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Print Details -->
+      <div class="panel-section">
+        <div class="panel-section-title">Front Print Details</div>
+        <div class="field"><label>Print Type</label><input type="text" id="f-type-front" placeholder="e.g. Screen Print" oninput="liveUpdate()" /></div>
+        <div class="field"><label>Dimensions</label><input type="text" id="f-dims-front" placeholder='e.g. 10" x 12"' oninput="liveUpdate()" /></div>
+        <div class="field"><label>Print Location</label><input type="text" id="f-loc-front" placeholder="e.g. Left Chest" oninput="liveUpdate()" /></div>
+      </div>
+
+      <div class="panel-section" id="section-back-print">
+        <div class="panel-section-title">Back Print Details</div>
+        <div class="field"><label>Print Type</label><input type="text" id="f-type-back" placeholder="e.g. Embroidery" oninput="liveUpdate()" /></div>
+        <div class="field"><label>Dimensions</label><input type="text" id="f-dims-back" placeholder='e.g. 12" x 14"' oninput="liveUpdate()" /></div>
+        <div class="field"><label>Print Location</label><input type="text" id="f-loc-back" placeholder="e.g. Full Back" oninput="liveUpdate()" /></div>
+      </div>
+
+      <!-- Colors -->
+      <div class="panel-section">
+        <div class="panel-section-title">Front Logo Colors</div>
+        <div class="color-swatches" id="front-colors"></div>
+      </div>
+
+      <div class="panel-section" id="section-back-colors">
+        <div class="panel-section-title">Back Logo Colors</div>
+        <div class="color-swatches" id="back-colors"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBRARY VIEW -->
+  <div id="library-view-wrapper">
+    <div id="library-view" class="active">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+        <h2 style="font-family:var(--font-display); font-weight:800; font-size:18px;">Asset Library</h2>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="promptSaveBlank()">+ Save Blank</button>
+          <button class="btn btn-secondary btn-sm" onclick="promptSaveLogo()">+ Save Logo</button>
+        </div>
+      </div>
+
+      <div class="library-section">
+        <div class="library-section-title">Blank Garments <span class="count" id="blank-count">0</span></div>
+        <div class="asset-grid" id="library-blanks">
+          <div class="empty-state" style="grid-column:1/-1">No blanks saved yet.<br>Upload from the Studio tab.</div>
+        </div>
+      </div>
+
+      <div class="library-section">
+        <div class="library-section-title">Logos <span class="count" id="logo-count">0</span></div>
+        <div class="asset-grid" id="library-logos">
+          <div class="empty-state" style="grid-column:1/-1">No logos saved yet.<br>Upload from the Studio tab.</div>
+        </div>
+      </div>
+
+      <div class="library-section">
+        <div class="library-section-title">Saved Mockups <span class="count" id="mockup-count">0</span></div>
+        <div id="library-mockups">
+          <div class="empty-state">No saved mockups yet.<br>Click 💾 Save in the Studio.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGO EDITOR OVERLAY -->
+<div id="logo-editor-overlay">
+  <div id="logo-editor-modal">
+    <h3>Position Logo</h3>
+    <p style="font-size:11px;color:var(--text2)">Drag to reposition · Resize using handles</p>
+    <canvas id="logo-editor-canvas"></canvas>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmLogoPosition()">✓ Apply</button>
+      <button class="btn btn-secondary" onclick="resetLogoPosition()">↺ Reset</button>
+      <button class="btn btn-ghost" onclick="closeLogoEditor()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Library Asset Picker Modal -->
+<div id="library-picker-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:20px;max-width:500px;width:90vw;max-height:70vh;display:flex;flex-direction:column;gap:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h3 style="font-family:var(--font-display);font-weight:700;font-size:14px;" id="picker-title">Select Asset</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeLibraryPicker()">✕</button>
+    </div>
+    <div class="asset-grid" id="picker-grid" style="overflow-y:auto;max-height:50vh;"></div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+const PAGE_WIDTH = 720;
+const PAGE_HEIGHT = 1080;
+
+function defaultPageInfo() {
+  return {
+    title: '',
+    subtitle: '',
+    mockupNum: '',
+    pdfName: '',
+    frontBlankImg: null, frontBlankBase64: null,
+    backBlankImg: null,  backBlankBase64: null,
+    frontLogoImg: null,  frontLogoBase64: null,
+    backLogoImg: null,   backLogoBase64: null,
+    frontCompositeBase64: null,
+    backCompositeBase64: null,
+    frontLogoPosSize: { x: null, y: null, w: null, h: null },
+    backLogoPosSize:  { x: null, y: null, w: null, h: null },
+    frontColors: ['#FF0000', '#000000', '#FFFFFF'],
+    backColors: ['#000000'],
+    printFront: { type: '', dims: '', loc: '' },
+    printBack:  { type: '', dims: '', loc: '' },
+    template: 1,
+  };
+}
+
+let state = {
+  pages: [defaultPageInfo()],
+  currentPage: 0,
+  showPrintPreview: false,
+};
+
+let updateTimer = null;
+let fabricCanvas = null;
+let fabricSide = null;
+let pickerTarget = null;
+
+// ═══════════════════════════════════════════════════════════════════
+// INDEXED DB  — asset library
+// ═══════════════════════════════════════════════════════════════════
+let db = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('JPMockupStudio', 2);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('blanks'))  d.createObjectStore('blanks',  { keyPath: 'id', autoIncrement: true });
+      if (!d.objectStoreNames.contains('logos'))   d.createObjectStore('logos',   { keyPath: 'id', autoIncrement: true });
+      if (!d.objectStoreNames.contains('mockups')) d.createObjectStore('mockups', { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbSave(store, data) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).add(data);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbDelete(store, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TOASTS
+// ═══════════════════════════════════════════════════════════════════
+function toast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  const sv = document.getElementById('studio-view');
+  const lv = document.getElementById('library-view-wrapper');
+  if (tab === 'studio') {
+    sv.classList.remove('hidden');
+    lv.classList.remove('active');
+  } else {
+    sv.classList.add('hidden');
+    lv.classList.add('active');
+    refreshLibrary();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PAGE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+function addPage() {
+  if (state.pages.length >= 6) { toast('Maximum 6 pages allowed', 'error'); return; }
+  state.pages.push(defaultPageInfo());
+  renderPageDots();
+  toast('Page added');
+}
+
+function removePage() {
+  if (state.pages.length <= 1) { toast('Cannot remove the only page', 'error'); return; }
+  state.pages.splice(state.currentPage, 1);
+  if (state.currentPage >= state.pages.length) state.currentPage = state.pages.length - 1;
+  loadPageIntoForm();
+  renderPageDots();
+  scheduleUpdate();
+  toast('Page removed');
+}
+
+function changePage(dir) {
+  const next = state.currentPage + dir;
+  if (next < 0 || next >= state.pages.length) return;
+  saveFormToState();
+  state.currentPage = next;
+  loadPageIntoForm();
+  renderPageDots();
+  scheduleUpdate();
+}
+
+function renderPageDots() {
+  const dots = document.getElementById('page-dots');
+  dots.innerHTML = state.pages.map((_, i) =>
+    `<button class="page-dot ${i === state.currentPage ? 'active' : ''}" onclick="jumpToPage(${i})"></button>`
+  ).join('');
+  document.getElementById('page-badge').textContent = `Page ${state.currentPage + 1} / ${state.pages.length}`;
+}
+
+function jumpToPage(i) {
+  saveFormToState();
+  state.currentPage = i;
+  loadPageIntoForm();
+  renderPageDots();
+  scheduleUpdate();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TEMPLATE
+// ═══════════════════════════════════════════════════════════════════
+function setTemplate(n) {
+  state.pages[state.currentPage].template = n;
+  document.getElementById('tpl-btn-1').classList.toggle('active', n === 1);
+  document.getElementById('tpl-btn-2').classList.toggle('active', n === 2);
+  const isSingle = n === 2;
+  ['field-back-blank','field-back-logo','section-back-print','section-back-colors','header-fields'].forEach(id => {
+    const el = document.getElementById(id);
+    if (id === 'header-fields') el.style.display = isSingle ? 'none' : '';
+    else el.style.display = isSingle ? 'none' : '';
+  });
+  scheduleUpdate();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FORM ↔ STATE SYNC
+// ═══════════════════════════════════════════════════════════════════
+function saveFormToState() {
+  const pg = state.pages[state.currentPage];
+  pg.title    = document.getElementById('f-title').value;
+  pg.subtitle = document.getElementById('f-subtitle').value;
+  pg.mockupNum= document.getElementById('f-mockupnum').value;
+  pg.pdfName  = document.getElementById('f-pdfname').value;
+  pg.printFront.type = document.getElementById('f-type-front').value;
+  pg.printFront.dims = document.getElementById('f-dims-front').value;
+  pg.printFront.loc  = document.getElementById('f-loc-front').value;
+  pg.printBack.type  = document.getElementById('f-type-back').value;
+  pg.printBack.dims  = document.getElementById('f-dims-back').value;
+  pg.printBack.loc   = document.getElementById('f-loc-back').value;
+}
+
+function loadPageIntoForm() {
+  const pg = state.pages[state.currentPage];
+  document.getElementById('f-title').value    = pg.title;
+  document.getElementById('f-subtitle').value = pg.subtitle;
+  document.getElementById('f-mockupnum').value= pg.mockupNum;
+  document.getElementById('f-pdfname').value  = pg.pdfName;
+  document.getElementById('f-type-front').value = pg.printFront.type;
+  document.getElementById('f-dims-front').value = pg.printFront.dims;
+  document.getElementById('f-loc-front').value  = pg.printFront.loc;
+  document.getElementById('f-type-back').value  = pg.printBack.type;
+  document.getElementById('f-dims-back').value  = pg.printBack.dims;
+  document.getElementById('f-loc-back').value   = pg.printBack.loc;
+
+  // Update image thumbnails
+  ['frontBlank','backBlank','frontLogo','backLogo'].forEach(key => {
+    const b64 = pg[key + 'Base64'];
+    updateThumb(key, b64);
+  });
+
+  // Colors
+  renderColorSwatches('front', pg.frontColors);
+  renderColorSwatches('back',  pg.backColors);
+
+  // Template
+  setTemplate(pg.template);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// IMAGE UPLOAD
+// ═══════════════════════════════════════════════════════════════════
+function handleImageUpload(e, key) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const b64 = ev.target.result;
+    state.pages[state.currentPage][key + 'Img'] = file;
+    state.pages[state.currentPage][key + 'Base64'] = b64;
+    // clear composite when source changes
+    if (key === 'frontBlank' || key === 'frontLogo') state.pages[state.currentPage].frontCompositeBase64 = null;
+    if (key === 'backBlank'  || key === 'backLogo')  state.pages[state.currentPage].backCompositeBase64  = null;
+    updateThumb(key, b64);
+    // Auto-save to library
+    autoSaveToLibrary(key, file.name, b64);
+    scheduleUpdate();
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateThumb(key, b64) {
+  const thumb = document.getElementById(`thumb-${keyToId(key)}`);
+  const text  = document.getElementById(`text-${keyToId(key)}`);
+  const img   = document.getElementById(`img-${keyToId(key)}`);
+  const zone  = document.getElementById(`zone-${keyToId(key)}`);
+  if (b64) {
+    img.src = b64;
+    thumb.style.display = 'flex';
+    text.style.display  = 'none';
+    zone.classList.add('has-image');
+  } else {
+    thumb.style.display = 'none';
+    text.style.display  = '';
+    zone.classList.remove('has-image');
+  }
+}
+
+function keyToId(key) {
+  return key.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+}
+
+function clearImage(key) {
+  const pg = state.pages[state.currentPage];
+  pg[key + 'Img'] = null;
+  pg[key + 'Base64'] = null;
+  if (key === 'frontBlank' || key === 'frontLogo') pg.frontCompositeBase64 = null;
+  if (key === 'backBlank'  || key === 'backLogo')  pg.backCompositeBase64  = null;
+  updateThumb(key, null);
+  scheduleUpdate();
+}
+
+async function autoSaveToLibrary(key, name, b64) {
+  if (!db) return;
+  const store = (key.includes('Logo')) ? 'logos' : 'blanks';
+  try {
+    await dbSave(store, { name, base64: b64, savedAt: Date.now() });
+  } catch(e) {
+    // ignore duplicate errors silently
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COLOR SWATCHES
+// ═══════════════════════════════════════════════════════════════════
+function renderColorSwatches(side, colors) {
+  const container = document.getElementById(`${side}-colors`);
+  container.innerHTML = '';
+  colors.forEach((c, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'color-swatch-item';
+    wrap.innerHTML = `
+      <input type="color" value="${c}" onchange="updateColor('${side}',${i},this.value)" title="${c}" />
+      <span class="swatch-hex">${c}</span>
+      <button class="btn btn-danger" style="padding:2px 4px;font-size:10px;" onclick="removeColor('${side}',${i})">✕</button>
+    `;
+    container.appendChild(wrap);
+  });
+  // Add button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-swatch-btn';
+  addBtn.textContent = '+';
+  addBtn.title = 'Add color';
+  addBtn.onclick = () => addColor(side);
+  container.appendChild(addBtn);
+}
+
+function updateColor(side, idx, val) {
+  const pg = state.pages[state.currentPage];
+  const arr = side === 'front' ? pg.frontColors : pg.backColors;
+  arr[idx] = val;
+  renderColorSwatches(side, arr);
+  scheduleUpdate();
+}
+
+function addColor(side) {
+  const pg = state.pages[state.currentPage];
+  const arr = side === 'front' ? pg.frontColors : pg.backColors;
+  if (arr.length >= 12) { toast('Max 12 colors per side'); return; }
+  arr.push('#ffffff');
+  renderColorSwatches(side, arr);
+  scheduleUpdate();
+}
+
+function removeColor(side, idx) {
+  const pg = state.pages[state.currentPage];
+  const arr = side === 'front' ? pg.frontColors : pg.backColors;
+  arr.splice(idx, 1);
+  renderColorSwatches(side, arr);
+  scheduleUpdate();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LOGO EDITOR (INLINE FABRIC.JS)
+// ═══════════════════════════════════════════════════════════════════
+function openLogoEditor(side) {
+  const pg = state.pages[state.currentPage];
+  const blankB64 = pg[side === 'front' ? 'frontBlankBase64' : 'backBlankBase64'];
+  const logoB64  = pg[side === 'front' ? 'frontLogoBase64'  : 'backLogoBase64'];
+  if (!blankB64) { toast('Upload a blank image first', 'error'); return; }
+  if (!logoB64)  { toast('Upload a logo image first', 'error'); return; }
+
+  fabricSide = side;
+  const overlay = document.getElementById('logo-editor-overlay');
+  overlay.classList.add('open');
+
+  const modalW = Math.min(window.innerWidth * 0.85, 600);
+  const modalH = Math.min(window.innerHeight * 0.65, 520);
+
+  const cvEl = document.getElementById('logo-editor-canvas');
+  cvEl.width  = modalW;
+  cvEl.height = modalH;
+
+  if (fabricCanvas) { fabricCanvas.dispose(); fabricCanvas = null; }
+  fabricCanvas = new fabric.Canvas('logo-editor-canvas', { backgroundColor: '#1a1a1a' });
+  fabricCanvas.setWidth(modalW);
+  fabricCanvas.setHeight(modalH);
+
+  const posSize = pg[side === 'front' ? 'frontLogoPosSize' : 'backLogoPosSize'];
+
+  fabric.Image.fromURL(blankB64, (blankImg) => {
+    const scaleX = modalW / blankImg.width;
+    const scaleY = modalH / blankImg.height;
+    const scale  = Math.min(scaleX, scaleY) * 0.95;
+    blankImg.set({ scaleX: scale, scaleY: scale, selectable: false, evented: false });
+    fabricCanvas.centerObject(blankImg);
+    fabricCanvas.add(blankImg);
+
+    fabric.Image.fromURL(logoB64, (logoImg) => {
+      const defScale = Math.min(modalW, modalH) / Math.max(logoImg.width, logoImg.height) * 0.3;
+      if (posSize.x !== null) {
+        logoImg.set({ left: posSize.x, top: posSize.y, scaleX: posSize.w, scaleY: posSize.h });
+      } else {
+        logoImg.set({ scaleX: defScale, scaleY: defScale });
+        fabricCanvas.centerObject(logoImg);
+      }
+      fabricCanvas.add(logoImg);
+      fabricCanvas.setActiveObject(logoImg);
+    });
+  });
+}
+
+function confirmLogoPosition() {
+  if (!fabricCanvas || !fabricSide) return;
+  const objs = fabricCanvas.getObjects();
+  const logoImg = objs.find(o => o.selectable !== false);
+  if (!logoImg) { closeLogoEditor(); return; }
+
+  const pg = state.pages[state.currentPage];
+  const key = fabricSide === 'front' ? 'frontLogoPosSize' : 'backLogoPosSize';
+  pg[key] = { x: logoImg.left, y: logoImg.top, w: logoImg.scaleX, h: logoImg.scaleY };
+
+  // Generate composite
+  const composite = fabricCanvas.toDataURL({ format: 'png', quality: 1, multiplier: 2 });
+  if (fabricSide === 'front') pg.frontCompositeBase64 = composite;
+  else                        pg.backCompositeBase64  = composite;
+
+  closeLogoEditor();
+  scheduleUpdate();
+  toast('Logo position saved ✓', 'success');
+}
+
+function resetLogoPosition() {
+  if (!fabricCanvas) return;
+  const objs = fabricCanvas.getObjects();
+  const logoImg = objs.find(o => o.selectable !== false);
+  if (!logoImg) return;
+  const defScale = Math.min(fabricCanvas.width, fabricCanvas.height) / Math.max(logoImg.width, logoImg.height) * 0.3;
+  logoImg.set({ scaleX: defScale, scaleY: defScale });
+  fabricCanvas.centerObject(logoImg);
+  fabricCanvas.renderAll();
+}
+
+function closeLogoEditor() {
+  document.getElementById('logo-editor-overlay').classList.remove('open');
+  if (fabricCanvas) { fabricCanvas.dispose(); fabricCanvas = null; }
+  fabricSide = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PDF GENERATION (pdf-lib)
+// ═══════════════════════════════════════════════════════════════════
+function setLoading(on) {
+  document.getElementById('loading-overlay').classList.toggle('active', on);
+}
+
+function scheduleUpdate() {
+  clearTimeout(updateTimer);
+  updateTimer = setTimeout(() => { saveFormToState(); renderPdfPreview(); }, 400);
+}
+
+function liveUpdate() {
+  clearTimeout(updateTimer);
+  updateTimer = setTimeout(() => { saveFormToState(); renderPdfPreview(); }, 600);
+}
+
+function togglePrintPreview() {
+  state.showPrintPreview = !state.showPrintPreview;
+  scheduleUpdate();
+  toast(state.showPrintPreview ? 'Preview borders ON' : 'Preview borders OFF');
+}
+
+function resetCurrentPage() {
+  const t = state.pages[state.currentPage].template;
+  state.pages[state.currentPage] = defaultPageInfo();
+  state.pages[state.currentPage].template = t;
+  loadPageIntoForm();
+  scheduleUpdate();
+  toast('Page reset');
+}
+
+function hexToRgb(hex) {
+  hex = hex.replace(/^#/, '');
+  if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
+  const r = parseInt(hex.substring(0,2), 16) / 255;
+  const g = parseInt(hex.substring(2,4), 16) / 255;
+  const b = parseInt(hex.substring(4,6), 16) / 255;
+  return PDFLib.rgb(r, g, b);
+}
+
+async function b64ToBytes(b64) {
+  const res = await fetch(b64);
+  return await res.arrayBuffer();
+}
+
+async function embedImg(pdfDoc, b64) {
+  if (!b64) return null;
+  const bytes = await b64ToBytes(b64);
+  const isPng = b64.includes('data:image/png') || b64.startsWith('data:image/png');
+  try {
+    return isPng ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+  } catch(e) {
+    try { return await pdfDoc.embedPng(bytes); } catch(e2) {
+      try { return await pdfDoc.embedJpg(bytes); } catch(e3) { return null; }
+    }
+  }
+}
+
+function drawPlaceholder(page, x, y, w, h, label, font) {
+  page.drawRectangle({ x, y, width: w, height: h, borderColor: PDFLib.rgb(0.3,0.3,0.3), borderWidth: 1 });
+  if (label && font) {
+    const fs = 18;
+    const tx = x + w/2 - font.widthOfTextAtSize(label, fs)/2;
+    const ty = y + h/2 - fs/2;
+    page.drawText(label, { x: tx, y: ty, size: fs, font, color: PDFLib.rgb(0.4,0.4,0.4) });
+  }
+}
+
+async function buildPdf() {
+  const pdfDoc = await PDFLib.PDFDocument.create();
+  const { StandardFonts, rgb } = PDFLib;
+
+  for (const pg of state.pages) {
+    const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    if (pg.template === 1) await renderTemplate1(pdfDoc, page, pg);
+    else                   await renderTemplate2(pdfDoc, page, pg);
+  }
+  return await pdfDoc.save();
+}
+
+async function renderTemplate1(pdfDoc, page, pg) {
+  const { StandardFonts, rgb } = PDFLib;
+  const margin = 32;
+  const gray = rgb(0.3,0.3,0.3);
+  const dark = rgb(0.2,0.2,0.2);
+  const accent = rgb(0.91, 1, 0.28); // #e8ff47
+
+  const titleFont    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const bodyFont     = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const captionFont  = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+  const placeholderFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // --- HEADER BAR ---
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 72, width: PAGE_WIDTH, height: 72, color: rgb(0.05,0.05,0.05) });
+
+  // Brand mark
+  const brandText = 'JOINT PRINTING';
+  const brandFs = 18;
+  page.drawText(brandText, { x: margin, y: PAGE_HEIGHT - 46, size: brandFs, font: titleFont, color: accent });
+
+  // Title / subtitle
+  if (pg.title) {
+    page.drawText(pg.title, { x: margin, y: PAGE_HEIGHT - 26, size: 11, font: bodyFont, color: rgb(0.7,0.7,0.7) });
+  }
+
+  // Mockup number right
+  const mockupStr = pg.mockupNum ? `Mockup ${pg.mockupNum}` : '';
+  if (mockupStr) {
+    const mnFs = 11;
+    const mnW = bodyFont.widthOfTextAtSize(mockupStr, mnFs);
+    page.drawText(mockupStr, { x: PAGE_WIDTH - margin - mnW, y: PAGE_HEIGHT - 42, size: mnFs, font: bodyFont, color: rgb(0.5,0.5,0.5) });
+  }
+
+  // Website
+  const site = 'www.jointprinting.com';
+  const siteFs = 10;
+  const siteW = bodyFont.widthOfTextAtSize(site, siteFs);
+  page.drawText(site, { x: PAGE_WIDTH - margin - siteW, y: PAGE_HEIGHT - 58, size: siteFs, font: bodyFont, color: rgb(0.4,0.4,0.4) });
+
+  // Subtitle
+  if (pg.subtitle) {
+    page.drawText(pg.subtitle, { x: margin, y: PAGE_HEIGHT - 90, size: 11, font: bodyFont, color: rgb(0.5,0.5,0.5) });
+  }
+
+  // --- GARMENT IMAGES ---
+  const bodyY = PAGE_HEIGHT - 120;
+  const imgW = PAGE_WIDTH / 2 - margin * 1.5;
+  const imgH = imgW * 1.2;
+  const frontX = margin;
+  const backX  = PAGE_WIDTH - margin - imgW;
+  const imgY   = bodyY - imgH;
+
+  // Front
+  const frontSrc = pg.frontCompositeBase64 || pg.frontBlankBase64;
+  if (frontSrc) {
+    const img = await embedImg(pdfDoc, frontSrc);
+    if (img) page.drawImage(img, { x: frontX, y: imgY, width: imgW, height: imgH });
+    else if (!state.showPrintPreview) drawPlaceholder(page, frontX, imgY, imgW, imgH, 'SHIRT FRONT', placeholderFont);
+  } else if (!state.showPrintPreview) {
+    drawPlaceholder(page, frontX, imgY, imgW, imgH, 'SHIRT FRONT', placeholderFont);
+  }
+
+  // Back
+  const backSrc = pg.backCompositeBase64 || pg.backBlankBase64;
+  if (backSrc) {
+    const img = await embedImg(pdfDoc, backSrc);
+    if (img) page.drawImage(img, { x: backX, y: imgY, width: imgW, height: imgH });
+    else if (!state.showPrintPreview) drawPlaceholder(page, backX, imgY, imgW, imgH, 'SHIRT BACK', placeholderFont);
+  } else if (!state.showPrintPreview) {
+    drawPlaceholder(page, backX, imgY, imgW, imgH, 'SHIRT BACK', placeholderFont);
+  }
+
+  // --- CAPTIONS ---
+  const capFs = 11;
+  const capLH = 15;
+  const capColor = rgb(0.3,0.3,0.3);
+
+  let frontCapY = imgY - capLH;
+  const frontCap = buildCaption(pg.printFront);
+  for (const line of frontCap) {
+    page.drawText(line, { x: frontX, y: frontCapY, size: capFs, font: captionFont, color: capColor });
+    frontCapY -= capLH;
+  }
+
+  let backCapY = imgY - capLH;
+  const backCap = buildCaption(pg.printBack);
+  for (const line of backCap) {
+    page.drawText(line, { x: backX, y: backCapY, size: capFs, font: captionFont, color: capColor });
+    backCapY -= capLH;
+  }
+
+  const belowY = Math.min(frontCapY, backCapY) - 12;
+
+  // --- LOGO BOXES ---
+  const logoBoxW = imgW * 0.7;
+  const logoBoxH = logoBoxW;
+  const frontLogoX = frontX + (imgW - logoBoxW) / 2;
+  const backLogoX  = backX  + (imgW - logoBoxW) / 2;
+  const logoBoxY   = belowY - logoBoxH;
+
+  if (pg.frontLogoBase64 && !pg.frontCompositeBase64) {
+    const logoImg = await embedImg(pdfDoc, pg.frontLogoBase64);
+    if (logoImg) page.drawImage(logoImg, { x: frontLogoX, y: logoBoxY, width: logoBoxW, height: logoBoxH });
+  } else if (!pg.frontCompositeBase64 && !state.showPrintPreview) {
+    drawPlaceholder(page, frontLogoX, logoBoxY, logoBoxW, logoBoxH, 'FRONT LOGO', placeholderFont);
+  }
+
+  if (pg.backLogoBase64 && !pg.backCompositeBase64) {
+    const logoImg = await embedImg(pdfDoc, pg.backLogoBase64);
+    if (logoImg) page.drawImage(logoImg, { x: backLogoX, y: logoBoxY, width: logoBoxW, height: logoBoxH });
+  } else if (!pg.backCompositeBase64 && !state.showPrintPreview) {
+    drawPlaceholder(page, backLogoX, logoBoxY, logoBoxW, logoBoxH, 'BACK LOGO', placeholderFont);
+  }
+
+  // --- COLOR CIRCLES ---
+  const circleY = logoBoxY - 28;
+  drawColorCircles(page, frontX + 18, circleY, pg.frontColors, 14, captionFont, frontX + imgW);
+  drawColorCircles(page, backX + 18,  circleY, pg.backColors,  14, captionFont, backX  + imgW);
+
+  // --- FOOTER ---
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: 36, color: rgb(0.05,0.05,0.05) });
+  page.drawText('INNOVATION IN INK', { x: margin, y: 12, size: 10, font: titleFont, color: rgb(0.35,0.35,0.35) });
+  const dateStr = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const dateW = bodyFont.widthOfTextAtSize(dateStr, 9);
+  page.drawText(dateStr, { x: PAGE_WIDTH - margin - dateW, y: 13, size: 9, font: bodyFont, color: rgb(0.3,0.3,0.3) });
+}
+
+async function renderTemplate2(pdfDoc, page, pg) {
+  const { StandardFonts, rgb } = PDFLib;
+  const margin = 40;
+  const accent = rgb(0.91, 1, 0.28);
+
+  const titleFont    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const bodyFont     = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const captionFont  = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
+  const placeholderFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Header
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 72, width: PAGE_WIDTH, height: 72, color: rgb(0.05,0.05,0.05) });
+  page.drawText('JOINT PRINTING', { x: margin, y: PAGE_HEIGHT - 46, size: 18, font: titleFont, color: accent });
+  const site = 'www.jointprinting.com';
+  const siteW = bodyFont.widthOfTextAtSize(site, 10);
+  page.drawText(site, { x: PAGE_WIDTH - margin - siteW, y: PAGE_HEIGHT - 46, size: 10, font: bodyFont, color: rgb(0.4,0.4,0.4) });
+
+  // Single centered image
+  const imgW = PAGE_WIDTH * 0.55;
+  const imgH = imgW * 1.2;
+  const imgX = (PAGE_WIDTH - imgW) / 2;
+  const imgY = PAGE_HEIGHT - 100 - imgH;
+
+  const src = pg.frontCompositeBase64 || pg.frontBlankBase64;
+  if (src) {
+    const img = await embedImg(pdfDoc, src);
+    if (img) page.drawImage(img, { x: imgX, y: imgY, width: imgW, height: imgH });
+    else drawPlaceholder(page, imgX, imgY, imgW, imgH, 'GARMENT', placeholderFont);
+  } else {
+    drawPlaceholder(page, imgX, imgY, imgW, imgH, 'GARMENT', placeholderFont);
+  }
+
+  // Caption
+  const capFs = 13;
+  const capLH = 18;
+  let capY = imgY - capLH;
+  const cap = buildCaption(pg.printFront);
+  for (const line of cap) {
+    const lw = captionFont.widthOfTextAtSize(line, capFs);
+    page.drawText(line, { x: (PAGE_WIDTH - lw)/2, y: capY, size: capFs, font: captionFont, color: rgb(0.35,0.35,0.35) });
+    capY -= capLH;
+  }
+
+  // Logo
+  const logoBoxW = PAGE_WIDTH * 0.3;
+  const logoBoxY = capY - logoBoxW - 16;
+  const logoBoxX = (PAGE_WIDTH - logoBoxW) / 2;
+  if (pg.frontLogoBase64 && !pg.frontCompositeBase64) {
+    const logoImg = await embedImg(pdfDoc, pg.frontLogoBase64);
+    if (logoImg) page.drawImage(logoImg, { x: logoBoxX, y: logoBoxY, width: logoBoxW, height: logoBoxW });
+  }
+
+  // Colors
+  drawColorCircles(page, PAGE_WIDTH/2 - 100, logoBoxY - 30, pg.frontColors, 14, captionFont, PAGE_WIDTH/2 + 100);
+
+  // Footer
+  page.drawRectangle({ x: 0, y: 0, width: PAGE_WIDTH, height: 36, color: rgb(0.05,0.05,0.05) });
+  page.drawText('INNOVATION IN INK', { x: margin, y: 12, size: 10, font: titleFont, color: rgb(0.35,0.35,0.35) });
+}
+
+function buildCaption(print) {
+  const lines = [];
+  if (print.type) lines.push(`Print Type: ${print.type}`);
+  if (print.dims) lines.push(`Dimensions: ${print.dims}`);
+  if (print.loc)  lines.push(`Location: ${print.loc}`);
+  return lines;
+}
+
+function drawColorCircles(page, startX, startY, colors, radius, font, maxX) {
+  if (!colors || !colors.length) return;
+  let cx = startX + radius;
+  let cy = startY;
+  const fs = 8;
+  const { rgb } = PDFLib;
+
+  colors.forEach(hex => {
+    if (!hex) return;
+    try {
+      const c = hexToRgb(hex);
+      const lum = 0.2126*c.red + 0.7152*c.green + 0.0722*c.blue;
+      const borderC = (hex.replace('#','').toLowerCase() === 'ffffff') ? rgb(0,0,0) : c;
+      page.drawCircle({ x: cx, y: cy, size: radius, color: c, borderWidth: 1, borderColor: borderC });
+      const label = hex.replace('#','').toLowerCase();
+      const textC = lum < 0.4 ? rgb(1,1,1) : rgb(0,0,0);
+      const tw = font.widthOfTextAtSize(label, fs);
+      page.drawText(label, { x: cx - tw/2, y: cy - fs/2, size: fs, font, color: textC });
+      cx += radius * 2.2;
+      if (cx + radius > maxX) { cy -= radius * 2.3; cx = startX + radius; }
+    } catch(e) {}
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PDF PREVIEW RENDERING (pdf.js)
+// ═══════════════════════════════════════════════════════════════════
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let pdfJsDoc = null;
+
+async function renderPdfPreview() {
+  setLoading(true);
+  try {
+    const pdfBytes = await buildPdf();
+    pdfJsDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+    const pdfPage = await pdfJsDoc.getPage(state.currentPage + 1);
+    const container = document.getElementById('canvas-area');
+    const scale = Math.min((container.clientWidth - 60) / PAGE_WIDTH, (container.clientHeight - 80) / PAGE_HEIGHT);
+    const vp = pdfPage.getViewport({ scale: Math.max(scale, 0.4) });
+    const canvas = document.getElementById('pdf-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width  = vp.width;
+    canvas.height = vp.height;
+    await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+  } catch(e) {
+    console.error('Preview error:', e);
+    toast('Preview error: ' + e.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════
+async function exportPdf() {
+  setLoading(true);
+  try {
+    saveFormToState();
+    const bytes = await buildPdf();
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = state.pages[state.currentPage].pdfName || 'jp-mockup.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('PDF exported ✓', 'success');
+  } catch(e) {
+    toast('Export failed: ' + e.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SAVE MOCKUP TO LIBRARY
+// ═══════════════════════════════════════════════════════════════════
+async function saveMockupToLibrary() {
+  if (!db) { toast('Database not ready', 'error'); return; }
+  saveFormToState();
+  const pg = state.pages[state.currentPage];
+  const name = pg.title || pg.pdfName || `Mockup ${Date.now()}`;
+  const snapshot = {
+    name,
+    savedAt: Date.now(),
+    thumbnail: pg.frontBlankBase64 || null,
+    pageState: JSON.parse(JSON.stringify({
+      ...pg,
+      // Don't store file objects in IDB — keep base64 only
+      frontBlankImg: null, backBlankImg: null, frontLogoImg: null, backLogoImg: null,
+    })),
+  };
+  try {
+    await dbSave('mockups', snapshot);
+    toast(`"${name}" saved to library ✓`, 'success');
+  } catch(e) {
+    toast('Save failed', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LIBRARY VIEW
+// ═══════════════════════════════════════════════════════════════════
+async function refreshLibrary() {
+  if (!db) return;
+  const [blanks, logos, mockups] = await Promise.all([
+    dbGetAll('blanks'), dbGetAll('logos'), dbGetAll('mockups')
+  ]);
+
+  document.getElementById('blank-count').textContent = blanks.length;
+  document.getElementById('logo-count').textContent  = logos.length;
+  document.getElementById('mockup-count').textContent = mockups.length;
+
+  renderAssetGrid('library-blanks', blanks, 'blanks');
+  renderAssetGrid('library-logos',  logos,  'logos');
+  renderMockupList('library-mockups', mockups);
+}
+
+function renderAssetGrid(containerId, items, store) {
+  const el = document.getElementById(containerId);
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No items yet.</div>`;
+    return;
+  }
+  el.innerHTML = items.map(item => `
+    <div class="asset-card">
+      <img src="${item.base64}" alt="${item.name}" />
+      <div class="asset-name">${item.name}</div>
+      <button class="asset-del" onclick="deleteAsset('${store}',${item.id},event)">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderMockupList(containerId, mockups) {
+  const el = document.getElementById(containerId);
+  if (!mockups.length) {
+    el.innerHTML = `<div class="empty-state">No saved mockups yet.</div>`;
+    return;
+  }
+  el.innerHTML = mockups.map(m => `
+    <div class="saved-mockup-card">
+      <div class="mockup-icon">${m.thumbnail ? `<img src="${m.thumbnail}" style="width:40px;height:40px;object-fit:contain;" />` : '📄'}</div>
+      <div class="mockup-info">
+        <div class="mockup-name">${m.name}</div>
+        <div class="mockup-date">${new Date(m.savedAt).toLocaleDateString()}</div>
+      </div>
+      <div class="mockup-actions">
+        <button class="btn btn-secondary btn-sm" onclick="loadMockupFromLibrary(${m.id})">Load</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAsset('mockups',${m.id},event)">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function deleteAsset(store, id, e) {
+  e.stopPropagation();
+  if (!confirm('Delete this asset?')) return;
+  await dbDelete(store, id);
+  refreshLibrary();
+  toast('Deleted');
+}
+
+async function loadMockupFromLibrary(id) {
+  const tx = db.transaction('mockups', 'readonly');
+  const req = tx.objectStore('mockups').get(id);
+  req.onsuccess = () => {
+    const m = req.result;
+    if (!m) return;
+    state.pages[state.currentPage] = { ...defaultPageInfo(), ...m.pageState };
+    loadPageIntoForm();
+    scheduleUpdate();
+    switchTab('studio');
+    // manually click studio tab
+    document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i === 0));
+    document.getElementById('studio-view').classList.remove('hidden');
+    document.getElementById('library-view-wrapper').classList.remove('active');
+    toast(`"${m.name}" loaded ✓`, 'success');
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LIBRARY PICKER (use asset in studio)
+// ═══════════════════════════════════════════════════════════════════
+async function useFromLibrary(key) {
+  if (!db) { toast('Library empty', 'error'); return; }
+  pickerTarget = key;
+  const store = key.includes('Logo') ? 'logos' : 'blanks';
+  const items = await dbGetAll(store);
+  if (!items.length) { toast('No ' + (store === 'logos' ? 'logos' : 'blanks') + ' in library', 'error'); return; }
+
+  document.getElementById('picker-title').textContent = 'Select ' + (store === 'logos' ? 'Logo' : 'Blank');
+  const grid = document.getElementById('picker-grid');
+  grid.innerHTML = items.map(item => `
+    <div class="asset-card" onclick="selectFromPicker(${item.id},'${store}')">
+      <img src="${item.base64}" alt="${item.name}" />
+      <div class="asset-name">${item.name}</div>
+    </div>
+  `).join('');
+  document.getElementById('library-picker-overlay').style.display = 'flex';
+}
+
+async function selectFromPicker(id, store) {
+  const tx = db.transaction(store, 'readonly');
+  const req = tx.objectStore(store).get(id);
+  req.onsuccess = () => {
+    const item = req.result;
+    if (!item || !pickerTarget) return;
+    state.pages[state.currentPage][pickerTarget + 'Base64'] = item.base64;
+    state.pages[state.currentPage][pickerTarget + 'Img'] = null;
+    if (pickerTarget === 'frontBlank' || pickerTarget === 'frontLogo') state.pages[state.currentPage].frontCompositeBase64 = null;
+    if (pickerTarget === 'backBlank'  || pickerTarget === 'backLogo')  state.pages[state.currentPage].backCompositeBase64  = null;
+    updateThumb(pickerTarget, item.base64);
+    closeLibraryPicker();
+    scheduleUpdate();
+    toast(`${item.name} loaded ✓`, 'success');
+  };
+}
+
+function closeLibraryPicker() {
+  document.getElementById('library-picker-overlay').style.display = 'none';
+  pickerTarget = null;
+}
+
+// Prompt save from library tab
+async function promptSaveBlank() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/png,image/jpeg';
+  input.onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = async (ev) => {
+      await dbSave('blanks', { name: file.name, base64: ev.target.result, savedAt: Date.now() });
+      toast('Blank saved ✓', 'success');
+      refreshLibrary();
+    };
+    r.readAsDataURL(file);
+  };
+  input.click();
+}
+
+async function promptSaveLogo() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/png,image/jpeg';
+  input.onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = async (ev) => {
+      await dbSave('logos', { name: file.name, base64: ev.target.result, savedAt: Date.now() });
+      toast('Logo saved ✓', 'success');
+      refreshLibrary();
+    };
+    r.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════
+async function init() {
+  try { await initDB(); } catch(e) { console.warn('IndexedDB unavailable:', e); }
+  renderPageDots();
+  renderColorSwatches('front', state.pages[0].frontColors);
+  renderColorSwatches('back',  state.pages[0].backColors);
+  setTemplate(1);
+  await renderPdfPreview();
+}
+
+init();
+</script>
 </body>
-
 </html>
