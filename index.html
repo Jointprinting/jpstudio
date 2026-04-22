@@ -1441,35 +1441,67 @@ function buildCaption(print){ const l=[]; if(print.type)l.push('Type: '+print.ty
 
 async function renderTemplate1(pdfDoc,page,pg) {
   const {rgb,StandardFonts}=PDFLib;
-  const mT=22,mS=30;
+  const mS=30;
   const titleFont  = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const captFont   = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
   page.drawRectangle({x:0,y:0,width:PAGE_WIDTH,height:PAGE_HEIGHT,color:rgb(1,1,1)});
-  // Header bar (dark green strip at top)
-  page.drawRectangle({x:0,y:PAGE_HEIGHT-52,width:PAGE_WIDTH,height:52,color:rgb(.18,.28,.12)});
-  // JP Logo
+
+  // ── Clean white header ──────────────────────────────────────────
+  const HDR=68; // header height
+  // JP Logo — left side, vertically centered in header
   const jpLogoB64=await getJpLogo();
-  let logoBottomY=PAGE_HEIGHT-mT;
-  if (jpLogoB64){const ji=await embedImg(pdfDoc,jpLogoB64);if(ji){const s=ji.scale(.62);const ly=PAGE_HEIGHT-s.height-mT+8;page.drawImage(ji,{x:mS,y:ly,width:s.width,height:s.height});logoBottomY=Math.min(logoBottomY,ly);}}
-  // Website
-  const site='www.jointprinting.com',sfs=11,scol=rgb(.85,.95,.75);
-  const sW=boldFont.widthOfTextAtSize(site,sfs);
-  page.drawText(site,{x:PAGE_WIDTH-mS-sW,y:PAGE_HEIGHT-mT-sfs+4,size:sfs,font:boldFont,color:scol});
-  const insta='@jointprinting';
-  const iW=boldFont.widthOfTextAtSize(insta,sfs);
-  page.drawText(insta,{x:PAGE_WIDTH-mS-iW,y:PAGE_HEIGHT-mT-sfs*2.4,size:sfs,font:boldFont,color:scol});
-  // Title area
-  const tY=PAGE_HEIGHT-52-28;
-  if(pg.title)   page.drawText(pg.title,   {x:mS,y:tY,   size:24,font:boldFont, color:rgb(.15,.15,.15)});
-  if(pg.subtitle)page.drawText(pg.subtitle,{x:mS,y:tY-24,size:14,font:titleFont,color:rgb(.45,.45,.45)});
+  if(jpLogoB64){
+    const ji=await embedImg(pdfDoc,jpLogoB64);
+    if(ji){
+      const maxW=150,maxH=HDR-16;
+      const s=ji.scale(1);
+      const sc=Math.min(maxW/s.width,maxH/s.height,1);
+      const lw=s.width*sc,lh=s.height*sc;
+      page.drawImage(ji,{x:mS,y:PAGE_HEIGHT-HDR+(HDR-lh)/2,width:lw,height:lh});
+    }
+  }
+  // Globe icon + website, Insta icon + handle — stacked top-right
+  const globeB64=await getJpGlobe();
+  const instaB64=await getJpInsta();
+  const icS=14; // icon size
+  const txtFs=9.5;
+  const txtCol=rgb(.28,.28,.28);
+  const boldTxtCol=rgb(.15,.36,.08);
+  const rightX=PAGE_WIDTH-mS;
+  const line1Y=PAGE_HEIGHT-HDR+(HDR/2)+4;
+  const line2Y=line1Y-icS-3;
+  const siteStr='www.jointprinting.com';
+  const instaStr='@jointprinting';
+  const siteW=boldFont.widthOfTextAtSize(siteStr,txtFs);
+  const instaW=boldFont.widthOfTextAtSize(instaStr,txtFs);
+  // Draw globe icon
+  if(globeB64){const gi=await embedImg(pdfDoc,globeB64);if(gi){page.drawImage(gi,{x:rightX-siteW-icS-5,y:line1Y-1,width:icS,height:icS});}}
+  page.drawText(siteStr,{x:rightX-siteW,y:line1Y,size:txtFs,font:boldFont,color:boldTxtCol});
+  // Draw insta icon
+  if(instaB64){const ii=await embedImg(pdfDoc,instaB64);if(ii){page.drawImage(ii,{x:rightX-instaW-icS-5,y:line2Y-1,width:icS,height:icS});}}
+  page.drawText(instaStr,{x:rightX-instaW,y:line2Y,size:txtFs,font:titleFont,color:txtCol});
+
+  // Thin divider line under header
+  page.drawLine({start:{x:mS,y:PAGE_HEIGHT-HDR},end:{x:PAGE_WIDTH-mS,y:PAGE_HEIGHT-HDR},thickness:.6,color:rgb(.82,.82,.82)});
+
+  // ── Title block — large and prominent ──────────────────────────
+  const titlePad=18;
+  const tBaseY=PAGE_HEIGHT-HDR-titlePad;
+  if(pg.title){
+    page.drawText(pg.title,{x:mS,y:tBaseY,size:30,font:boldFont,color:rgb(.08,.08,.08)});
+  }
+  if(pg.subtitle){
+    page.drawText(pg.subtitle,{x:mS,y:tBaseY-26,size:15,font:titleFont,color:rgb(.40,.40,.40)});
+  }
   // Garment images
-  const avail=tY-26-(pg.subtitle?24:0);
-  const imgH=Math.min(avail*.65,340);
+  const titleBottom=tBaseY-(pg.subtitle?26+15:0);
+  const avail=titleBottom-52; // space from below title to above footer
+  const imgH=Math.min(avail*.68,360);
   const imgW=imgH*.80;
   const gap=PAGE_WIDTH-mS*2-imgW*2;
   const frontX=mS, backX=mS+imgW+gap;
-  const imgY=tY-(pg.subtitle?24:0)-26-imgH;
+  const imgY=titleBottom-20-imgH;
   const frontSrc=pg.frontCompositeBase64||pg.frontBlankBase64;
   if(frontSrc){const img=await embedImg(pdfDoc,frontSrc);if(img)page.drawImage(img,{x:frontX,y:imgY,width:imgW,height:imgH});else if(!state.showPrintPreview)drawPlaceholder(page,frontX,imgY,imgW,imgH,'FRONT',boldFont);}
   else if(!state.showPrintPreview)drawPlaceholder(page,frontX,imgY,imgW,imgH,'FRONT',boldFont);
@@ -1505,23 +1537,33 @@ async function renderTemplate1(pdfDoc,page,pg) {
 
 async function renderTemplate2(pdfDoc,page,pg) {
   const {rgb,StandardFonts}=PDFLib;
-  const mT=22,mS=40;
+  const mS=40;
   const titleFont=await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont =await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const captFont =await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
   page.drawRectangle({x:0,y:0,width:PAGE_WIDTH,height:PAGE_HEIGHT,color:rgb(1,1,1)});
-  page.drawRectangle({x:0,y:PAGE_HEIGHT-52,width:PAGE_WIDTH,height:52,color:rgb(.18,.28,.12)});
+  // ── Clean white header ──────────────────────────────────────────
+  const HDR=68;
   const jpLogoB64=await getJpLogo();
-  let logoBottomY=PAGE_HEIGHT-mT;
-  if(jpLogoB64){const ji=await embedImg(pdfDoc,jpLogoB64);if(ji){const s=ji.scale(.62);const ly=PAGE_HEIGHT-s.height-mT+8;page.drawImage(ji,{x:mS,y:ly,width:s.width,height:s.height});logoBottomY=Math.min(logoBottomY,ly);}}
-  const site='www.jointprinting.com',sfs=11,scol=rgb(.85,.95,.75);
-  const sW=boldFont.widthOfTextAtSize(site,sfs);
-  page.drawText(site,{x:PAGE_WIDTH-mS-sW,y:PAGE_HEIGHT-mT-sfs+4,size:sfs,font:boldFont,color:scol});
-  const tY=PAGE_HEIGHT-52-28;
-  if(pg.title)    page.drawText(pg.title,   {x:mS,y:tY,   size:24,font:boldFont, color:rgb(.15,.15,.15)});
-  if(pg.subtitle) page.drawText(pg.subtitle,{x:mS,y:tY-24,size:14,font:titleFont,color:rgb(.45,.45,.45)});
-  const imgW=PAGE_WIDTH*.50,imgH=imgW*1.2,imgX=(PAGE_WIDTH-imgW)/2;
-  const imgY=tY-(pg.subtitle?24:0)-26-imgH;
+  if(jpLogoB64){const ji=await embedImg(pdfDoc,jpLogoB64);if(ji){const maxW=150,maxH=HDR-16;const s=ji.scale(1);const sc=Math.min(maxW/s.width,maxH/s.height,1);const lw=s.width*sc,lh=s.height*sc;page.drawImage(ji,{x:mS,y:PAGE_HEIGHT-HDR+(HDR-lh)/2,width:lw,height:lh});}}
+  const globeB64=await getJpGlobe();const instaB64=await getJpInsta();
+  const icS=14,txtFs=9.5,rightX=PAGE_WIDTH-mS;
+  const line1Y=PAGE_HEIGHT-HDR+(HDR/2)+4;const line2Y=line1Y-icS-3;
+  const siteStr='www.jointprinting.com';const instaStr='@jointprinting';
+  const siteW=boldFont.widthOfTextAtSize(siteStr,txtFs);const instaW=boldFont.widthOfTextAtSize(instaStr,txtFs);
+  if(globeB64){const gi=await embedImg(pdfDoc,globeB64);if(gi){page.drawImage(gi,{x:rightX-siteW-icS-5,y:line1Y-1,width:icS,height:icS});}}
+  page.drawText(siteStr,{x:rightX-siteW,y:line1Y,size:txtFs,font:boldFont,color:rgb(.15,.36,.08)});
+  if(instaB64){const ii=await embedImg(pdfDoc,instaB64);if(ii){page.drawImage(ii,{x:rightX-instaW-icS-5,y:line2Y-1,width:icS,height:icS});}}
+  page.drawText(instaStr,{x:rightX-instaW,y:line2Y,size:txtFs,font:titleFont,color:rgb(.28,.28,.28)});
+  page.drawLine({start:{x:mS,y:PAGE_HEIGHT-HDR},end:{x:PAGE_WIDTH-mS,y:PAGE_HEIGHT-HDR},thickness:.6,color:rgb(.82,.82,.82)});
+  // ── Title block ─────────────────────────────────────────────────
+  const titlePad=18;
+  const tBaseY=PAGE_HEIGHT-HDR-titlePad;
+  if(pg.title)    page.drawText(pg.title,   {x:mS,y:tBaseY,   size:30,font:boldFont, color:rgb(.08,.08,.08)});
+  if(pg.subtitle) page.drawText(pg.subtitle,{x:mS,y:tBaseY-26,size:15,font:titleFont,color:rgb(.40,.40,.40)});
+  const titleBottom=tBaseY-(pg.subtitle?26+15:0);
+  const imgW=PAGE_WIDTH*.50,imgH=Math.min(imgW*1.2,titleBottom-80),imgX=(PAGE_WIDTH-imgW)/2;
+  const imgY=titleBottom-20-imgH;
   const src=pg.frontCompositeBase64||pg.frontBlankBase64;
   if(src){const img=await embedImg(pdfDoc,src);if(img)page.drawImage(img,{x:imgX,y:imgY,width:imgW,height:imgH});else drawPlaceholder(page,imgX,imgY,imgW,imgH,'GARMENT',boldFont);}
   else drawPlaceholder(page,imgX,imgY,imgW,imgH,'GARMENT',boldFont);
