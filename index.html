@@ -673,55 +673,68 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:var(--f);
     </div>
 
     <div class="ss-tabs">
-      <button class="ss-tab active" id="ss-tab-catalog" onclick="switchSsTab('catalog',this)">GitHub Catalog</button>
+      <button class="ss-tab active" id="ss-tab-api" onclick="switchSsTab('api',this)">Auto Search</button>
       <button class="ss-tab" id="ss-tab-url" onclick="switchSsTab('url',this)">Paste URLs</button>
     </div>
 
-    <!-- GitHub Catalog pane -->
-    <div class="ss-pane active" id="ss-pane-catalog">
-      <div class="gh-box">
-        <div class="gh-info">Store your S&amp;S image URLs permanently in <code>public/garments.json</code> in your JPStudio repo — search here instead of pasting every time.</div>
-        <div class="gh-url-row">
-          <input type="text" class="ss-in" id="gh-manifest-url" placeholder="https://raw.githubusercontent.com/Jointprinting/JPStudio/main/public/garments.json" style="flex:1;font-size:10.5px"/>
-          <button class="btn btn-secondary btn-sm" onclick="saveGhManifestUrl()">Save</button>
-          <button class="btn btn-primary btn-sm" onclick="fetchGhManifest()">Load</button>
+    <!-- Auto Search pane (API via Worker) -->
+    <div class="ss-pane active" id="ss-pane-api">
+      <!-- Worker URL setup — collapses once configured -->
+      <div id="ss-worker-setup" style="background:var(--s1);border:1px solid var(--bd);border-radius:var(--rl);padding:11px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px;color:var(--tx2)">Enter your <strong style="color:var(--tx)">Cloudflare Worker URL</strong> once to enable auto-search:</div>
+        <div style="display:flex;gap:6px">
+          <input type="text" class="ss-in" id="ss-worker-url" placeholder="https://jp-ss-proxy.yourname.workers.dev" style="flex:1;font-size:11px"/>
+          <button class="btn btn-primary btn-sm" onclick="saveWorkerUrl()">Save</button>
         </div>
-        <div id="gh-manifest-status" class="gh-status"></div>
+        <div id="ss-worker-status" style="font-size:10px;font-family:var(--fm);color:var(--tx3);min-height:14px"></div>
       </div>
-      <div class="gh-search-row">
-        <input type="text" class="ss-in" id="gh-search" placeholder="Search style code or color — e.g. SS4500, Army…" oninput="searchGhManifest(this.value)"/>
-        <div id="gh-results" class="gh-results"><div class="gh-empty">Load your catalog above to search garments</div></div>
+
+      <!-- Search -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="field" style="margin:0"><label>Style Code</label><input type="text" class="ss-in" id="ss-style" placeholder="SS4500, 3001C…" oninput="buildSsUrl()"/></div>
+        <div class="field" style="margin:0"><label>Color (optional)</label><input type="text" class="ss-in" id="ss-color" placeholder="Army, Black…"/></div>
       </div>
-      <div class="ss-note">
-        <strong>Adding a garment:</strong> Find it on S&amp;S → right-click front/back image → "Copy image address" → add to <code>garments.json</code>:
-        <code style="display:block;margin-top:5px;word-break:break-all">{"style":"SS4500","color":"Army","name":"ITC Hoodie Army","front":"URL","back":"URL"}</code>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onclick="searchSsApi()" style="flex:1">🔍 Search S&amp;S</button>
+        <a id="ss-product-link" href="#" target="_blank" class="ss-link" style="display:none;font-size:11px">Open on S&amp;S ↗</a>
       </div>
+
+      <!-- Status / results -->
+      <div id="ss-api-status" style="font-size:10px;font-family:var(--fm);color:var(--tx3);min-height:14px;text-align:center"></div>
+
+      <!-- Color picker (shows when multiple colors returned) -->
+      <div id="ss-color-picker" style="display:none;flex-direction:column;gap:6px">
+        <div style="font-size:10px;font-family:var(--fm);color:var(--tx3);letter-spacing:.06em;text-transform:uppercase">Select a color</div>
+        <div id="ss-color-list" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
+      </div>
+
+      <!-- Previews -->
+      <div class="ss-prevs">
+        <div class="ss-prev" id="ss-prev-front"><div class="ss-prev-lbl">Front</div></div>
+        <div class="ss-prev" id="ss-prev-back"><div class="ss-prev-lbl">Back</div></div>
+      </div>
+      <!-- hidden inputs to hold URLs for importSsImages() -->
+      <input type="hidden" id="ss-front-url"/>
+      <input type="hidden" id="ss-back-url"/>
+      <span id="ss-auto-status" style="display:none"></span>
     </div>
 
-    <!-- Paste URLs pane -->
+    <!-- Paste URLs pane (manual fallback) -->
     <div class="ss-pane" id="ss-pane-url">
-      <div class="row2" style="gap:8px">
-        <div class="field" style="margin:0"><label>Style Code</label><input type="text" class="ss-in" id="ss-style" placeholder="SS4500, 3001C…" oninput="buildSsUrl()"/></div>
-        <div class="field" style="margin:0"><label>Color</label><input type="text" class="ss-in" id="ss-color" placeholder="Army, Black…"/></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <a id="ss-product-link" href="#" target="_blank" class="ss-link" style="display:none">Open on S&amp;S ↗</a>
-        <span id="ss-auto-status" style="font-size:10px;font-family:var(--fm);color:var(--tx3)"></span>
-      </div>
-      <div class="ss-note">Right-click a garment image on S&amp;S → "Copy image address" → paste below, then click Test to preview</div>
+      <div class="ss-note">Right-click a garment image on S&amp;S → "Copy image address" → paste below</div>
       <div class="ss-url-row">
         <span class="ss-url-lbl">Front</span>
-        <input type="text" class="ss-in" id="ss-front-url" placeholder="https://www.ssactivewear.com/…"/>
-        <button class="btn btn-secondary btn-xs" onclick="testSsUrl('front')">Test</button>
+        <input type="text" class="ss-in" id="ss-manual-front-url" placeholder="https://www.ssactivewear.com/…"/>
+        <button class="btn btn-secondary btn-xs" onclick="testManualUrl('front')">Test</button>
       </div>
       <div class="ss-url-row">
         <span class="ss-url-lbl">Back</span>
-        <input type="text" class="ss-in" id="ss-back-url" placeholder="https://www.ssactivewear.com/…"/>
-        <button class="btn btn-secondary btn-xs" onclick="testSsUrl('back')">Test</button>
+        <input type="text" class="ss-in" id="ss-manual-back-url" placeholder="https://www.ssactivewear.com/…"/>
+        <button class="btn btn-secondary btn-xs" onclick="testManualUrl('back')">Test</button>
       </div>
       <div class="ss-prevs">
-        <div class="ss-prev" id="ss-prev-front" onclick="testSsUrl('front')"><div class="ss-prev-lbl">Front</div></div>
-        <div class="ss-prev" id="ss-prev-back" onclick="testSsUrl('back')"><div class="ss-prev-lbl">Back</div></div>
+        <div class="ss-prev" id="ss-manual-prev-front"><div class="ss-prev-lbl">Front</div></div>
+        <div class="ss-prev" id="ss-manual-prev-back"><div class="ss-prev-lbl">Back</div></div>
       </div>
     </div>
 
@@ -761,90 +774,201 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:var(--f);
 
 <div id="toast-container"></div>
 <script>
-// ─── GitHub Catalog ───────────────────────────────────────────────
-let ghManifestData = null;
-let _ghManifestUrl = localStorage.getItem('jp_gh_manifest') || '';
-if (_ghManifestUrl) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById('gh-manifest-url');
-    if (el) el.value = _ghManifestUrl;
+// ─── S&S API via Cloudflare Worker ────────────────────────────────
+let _ssWorkerUrl = localStorage.getItem('jp_ss_worker') || '';
+let _ssLoadedFrontUrl = null;
+let _ssLoadedBackUrl  = null;
+// legacy compat — also used by importSsImages
+let ssLoadedFront = null;
+let ssLoadedBack  = null;
+
+// Populate worker URL input when modal opens
+function initWorkerSetup() {
+  const input = document.getElementById('ss-worker-url');
+  if (!input) return;
+  if (_ssWorkerUrl) {
+    input.value = _ssWorkerUrl;
+    // Collapse the setup box if already configured
+    const box = document.getElementById('ss-worker-setup');
+    if (box) box.style.opacity = '.7';
+  }
+}
+
+function saveWorkerUrl() {
+  const url = document.getElementById('ss-worker-url').value.trim().replace(/\/$/, '');
+  if (!url) return;
+  _ssWorkerUrl = url;
+  localStorage.setItem('jp_ss_worker', url);
+  const st = document.getElementById('ss-worker-status');
+  if (st) { st.textContent = '✓ Saved'; st.style.color = 'var(--green)'; }
+  const box = document.getElementById('ss-worker-setup');
+  if (box) box.style.opacity = '.7';
+  toast('Worker URL saved ✓', 'success');
+}
+
+async function searchSsApi() {
+  const style  = (document.getElementById('ss-style').value  || '').trim().toUpperCase();
+  const color  = (document.getElementById('ss-color').value  || '').trim();
+  const worker = _ssWorkerUrl;
+  const status = document.getElementById('ss-api-status');
+  const picker = document.getElementById('ss-color-picker');
+
+  if (!style) { toast('Enter a style code first', 'error'); return; }
+  if (!worker) {
+    status.textContent = '⚠ Enter your Worker URL above first';
+    status.style.color = 'var(--amber)';
+    return;
+  }
+
+  status.textContent = 'Searching…';
+  status.style.color = 'var(--tx3)';
+  picker.style.display = 'none';
+
+  // Reset previews
+  resetApiPreviews();
+
+  try {
+    const params = new URLSearchParams({ style });
+    if (color) params.set('color', color);
+    const res = await fetch(`${worker}?${params}`);
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      status.textContent = `Error: ${data.error || res.status}`;
+      status.style.color = 'var(--red)';
+      return;
+    }
+
+    if (data.match) {
+      // Direct match — load previews immediately
+      status.textContent = `✓ ${data.match.color || style}`;
+      status.style.color = 'var(--green)';
+      await loadApiColor(data.match);
+    } else if (data.colors && data.colors.length > 0) {
+      // No exact color match — show picker
+      status.textContent = `${data.colors.length} colors available — pick one:`;
+      status.style.color = 'var(--tx2)';
+      showColorPicker(data.colors);
+    } else {
+      status.textContent = 'No results found for that style code';
+      status.style.color = 'var(--tx3)';
+    }
+  } catch(e) {
+    status.textContent = 'Request failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+}
+
+function showColorPicker(colors) {
+  const picker = document.getElementById('ss-color-picker');
+  const list   = document.getElementById('ss-color-list');
+  picker.style.display = 'flex';
+  list.innerHTML = '';
+  colors.forEach((c, i) => {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;transition:all .14s;font-size:12px;color:var(--tx2)';
+    el.style.animationDelay = (i * 0.03) + 's';
+    el.innerHTML = `<span style="flex:1">${c.color}</span><span style="font-family:var(--fm);font-size:9px;color:var(--tx3)">${c.colorCode}</span><span style="font-size:10px;color:var(--tx3)">→</span>`;
+    el.onmouseover = () => el.style.borderColor = 'var(--ac)';
+    el.onmouseout  = () => el.style.borderColor = 'var(--bd)';
+    el.onclick = () => {
+      document.getElementById('ss-color').value = c.color;
+      document.getElementById('ss-api-status').textContent = `✓ ${c.color}`;
+      document.getElementById('ss-api-status').style.color = 'var(--green)';
+      document.getElementById('ss-color-picker').style.display = 'none';
+      loadApiColor(c);
+    };
+    list.appendChild(el);
   });
 }
 
-function saveGhManifestUrl() {
-  const url = document.getElementById('gh-manifest-url').value.trim();
-  if (!url) return;
-  localStorage.setItem('jp_gh_manifest', url);
-  _ghManifestUrl = url;
-  fetchGhManifest();
-}
-async function fetchGhManifest() {
-  const url = document.getElementById('gh-manifest-url').value.trim() || _ghManifestUrl;
-  if (!url) { setGhStatus('Enter a raw GitHub URL first', false); return; }
-  setGhStatus('Loading…', null);
-  try {
-    const res = await fetch(url + '?t=' + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status + ' — check the URL is a raw GitHub link');
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('garments.json must be an array');
-    ghManifestData = data;
-    localStorage.setItem('jp_gh_manifest', url);
-    _ghManifestUrl = url;
-    setGhStatus(`✓ ${data.length} garment${data.length !== 1 ? 's' : ''} loaded`, true);
-    searchGhManifest('');
-  } catch(e) {
-    setGhStatus('Error: ' + e.message, false);
+async function loadApiColor(colorObj) {
+  const frontUrl = colorObj.front;
+  const backUrl  = colorObj.back;
+
+  document.getElementById('ss-front-url').value = frontUrl || '';
+  document.getElementById('ss-back-url').value  = backUrl  || '';
+
+  if (frontUrl) await previewApiImage('front', frontUrl);
+  if (backUrl)  await previewApiImage('back',  backUrl);
+
+  // Set title in studio if blank
+  const style = (document.getElementById('ss-style').value || '').trim();
+  const color = colorObj.color || (document.getElementById('ss-color').value || '').trim();
+  const pg = state.pages[state.currentPage];
+  if (!pg.title && style) {
+    const titleVal = style + (color ? ' – ' + color : '');
+    document.getElementById('f-title').value = titleVal;
+    pg.title = titleVal;
   }
 }
-function setGhStatus(msg, ok) {
-  const el = document.getElementById('gh-manifest-status');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'gh-status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+
+async function previewApiImage(side, url) {
+  const containerId = side === 'front' ? 'ss-prev-front' : 'ss-prev-back';
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const b64 = await urlToBase64(url);
+  if (b64) {
+    if (side === 'front') { ssLoadedFront = b64; _ssLoadedFrontUrl = url; }
+    else                  { ssLoadedBack  = b64; _ssLoadedBackUrl  = url; }
+    container.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain"/><div class="ss-prev-lbl loaded">${side.toUpperCase()} ✓</div>`;
+  } else {
+    // CORS blocked — store URL directly, will re-fetch on import
+    if (side === 'front') { ssLoadedFront = null; _ssLoadedFrontUrl = url; }
+    else                  { ssLoadedBack  = null; _ssLoadedBackUrl  = url; }
+    container.innerHTML = `<img src="${url}" crossorigin="anonymous" style="width:100%;height:100%;object-fit:contain" onerror="this.style.display='none'"/><div class="ss-prev-lbl loaded">${side.toUpperCase()} ✓</div>`;
+  }
+  container.classList.add('loaded');
 }
-function searchGhManifest(q) {
-  const container = document.getElementById('gh-results');
-  if (!ghManifestData) { container.innerHTML = '<div class="gh-empty">Load your catalog above to search garments</div>'; return; }
-  const query = q.toLowerCase().trim();
-  const results = query
-    ? ghManifestData.filter(g => ((g.style||'') + (g.color||'') + (g.name||'')).toLowerCase().includes(query))
-    : ghManifestData;
-  if (!results.length) { container.innerHTML = '<div class="gh-empty">No matches found</div>'; return; }
-  container.innerHTML = '';
-  results.slice(0, 24).forEach((g, i) => {
-    const el = document.createElement('div');
-    el.className = 'gh-item';
-    el.style.animationDelay = (i * 0.025) + 's';
-    el.innerHTML = `<div style="flex:1"><div class="gh-item-name">${g.name || ((g.style||'') + (g.color ? ' – ' + g.color : ''))}</div><div class="gh-item-meta">${g.style || ''}${g.color ? ' · ' + g.color : ''}</div></div><span style="font-size:10px;color:var(--tx3)">→</span>`;
-    el.onclick = () => loadGhGarment(g);
-    container.appendChild(el);
-  });
+
+function resetApiPreviews() {
+  ssLoadedFront = null; ssLoadedBack = null;
+  _ssLoadedFrontUrl = null; _ssLoadedBackUrl = null;
+  const pf = document.getElementById('ss-prev-front');
+  const pb = document.getElementById('ss-prev-back');
+  if (pf) { pf.innerHTML = '<div class="ss-prev-lbl">Front</div>'; pf.classList.remove('loaded'); }
+  if (pb) { pb.innerHTML = '<div class="ss-prev-lbl">Back</div>';  pb.classList.remove('loaded'); }
 }
-async function loadGhGarment(g) {
-  if (g.front) { document.getElementById('ss-front-url').value = g.front; await previewSsUrl('front', g.front); }
-  if (g.back)  { document.getElementById('ss-back-url').value  = g.back;  await previewSsUrl('back',  g.back);  }
-  if (g.style) document.getElementById('ss-style').value = g.style;
-  if (g.color) document.getElementById('ss-color').value = g.color;
-  switchSsTab('url', document.getElementById('ss-tab-url'));
-  toast(`${g.name || g.style} loaded — click Import`, 'success');
+
+// ─── Manual URL paste tab ─────────────────────────────────────────
+let _manualFront = null;
+let _manualBack  = null;
+
+async function testManualUrl(side) {
+  const inputId = side === 'front' ? 'ss-manual-front-url' : 'ss-manual-back-url';
+  const prevId  = side === 'front' ? 'ss-manual-prev-front' : 'ss-manual-prev-back';
+  const url = document.getElementById(inputId).value.trim();
+  if (!url) return;
+  const container = document.getElementById(prevId);
+  container.innerHTML = '<div class="ss-prev-lbl">Loading…</div>';
+  const b64 = await urlToBase64(url);
+  if (b64) {
+    if (side === 'front') _manualFront = b64;
+    else                  _manualBack  = b64;
+    container.innerHTML = `<img src="${b64}" style="width:100%;height:100%;object-fit:contain"/><div class="ss-prev-lbl loaded">${side.toUpperCase()} ✓</div>`;
+    container.classList.add('loaded');
+    toast(`${side} image loaded ✓`, 'success');
+  } else {
+    container.innerHTML = `<div class="ss-prev-lbl" style="color:var(--red)">Failed</div>`;
+    toast(`Could not load ${side} image`, 'error');
+  }
 }
+
+// ─── Tab switcher ─────────────────────────────────────────────────
 function switchSsTab(tab, btn) {
   document.querySelectorAll('.ss-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.ss-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('ss-pane-' + tab).classList.add('active');
 }
-// Init: load catalog if URL is saved
-window.addEventListener('load', () => {
-  if (_ghManifestUrl && !ghManifestData) {
-    const el = document.getElementById('gh-manifest-url');
-    if (el) el.value = _ghManifestUrl;
-    fetchGhManifest().catch(() => {});
-  }
-});
+
+// ─── CSS colour-list item hover ───────────────────────────────────
+window.addEventListener('load', initWorkerSetup);
 </script>
 
 <script>
+
 // ─── Constants & Core JS ─────────────────────────────────────────
 const PAGE_WIDTH  = 720;
 const PAGE_HEIGHT = 1080;
@@ -1136,16 +1260,14 @@ function tryLoadImage(url) {
 
 // ── S&S Finder ────────────────────────────────────────────────────
 function openSsModal() {
-  ssLoadedFront = null; ssLoadedBack = null;
   document.getElementById('ss-modal-overlay').style.display = 'flex';
-  const statusEl = document.getElementById('ss-auto-status');
-  if (statusEl) statusEl.textContent = '';
-  const pf = document.getElementById('ss-prev-front');
-  const pb = document.getElementById('ss-prev-back');
-  if (pf) pf.innerHTML = '<div class="ss-prev-lbl">Front</div>';
-  if (pb) pb.innerHTML = '<div class="ss-prev-lbl">Back</div>';
-  if (pf) pf.classList.remove('loaded');
-  if (pb) pb.classList.remove('loaded');
+  resetApiPreviews();
+  _manualFront = null; _manualBack = null;
+  const mf = document.getElementById('ss-manual-prev-front');
+  const mb = document.getElementById('ss-manual-prev-back');
+  if (mf) { mf.innerHTML = '<div class="ss-prev-lbl">Front</div>'; mf.classList.remove('loaded'); }
+  if (mb) { mb.innerHTML = '<div class="ss-prev-lbl">Back</div>';  mb.classList.remove('loaded'); }
+  initWorkerSetup();
 }
 function closeSsModal() {
   document.getElementById('ss-modal-overlay').style.display = 'none';
@@ -1186,37 +1308,49 @@ async function previewSsUrl(side, url) {
   container.classList.add('loaded');
 }
 async function importSsImages() {
-  const fUrl = document.getElementById('ss-front-url').value.trim();
-  const bUrl = document.getElementById('ss-back-url').value.trim();
-  const color = document.getElementById('ss-color').value.trim();
-  const style = document.getElementById('ss-style').value.trim();
-  if (!fUrl && !bUrl) { toast('Enter at least one image URL', 'error'); return; }
+  // Determine which tab is active and get URLs accordingly
+  const apiPaneActive = document.getElementById('ss-pane-api').classList.contains('active');
+
+  let fUrl, bUrl, fB64, bB64, style, color;
+
+  if (apiPaneActive) {
+    fUrl = document.getElementById('ss-front-url').value.trim();
+    bUrl = document.getElementById('ss-back-url').value.trim();
+    fB64 = ssLoadedFront;
+    bB64 = ssLoadedBack;
+    style = (document.getElementById('ss-style').value || '').trim();
+    color = (document.getElementById('ss-color').value || '').trim();
+  } else {
+    fUrl = (document.getElementById('ss-manual-front-url').value || '').trim();
+    bUrl = (document.getElementById('ss-manual-back-url').value || '').trim();
+    fB64 = _manualFront;
+    bB64 = _manualBack;
+    style = ''; color = '';
+  }
+
+  if (!fUrl && !bUrl && !fB64 && !bB64) { toast('Search for a garment or paste image URLs first', 'error'); return; }
   setLoading(true);
   try {
     const pg = state.pages[state.currentPage];
-    if (fUrl) {
-      const b64 = ssLoadedFront && ssLoadedFront.startsWith('data:') ? ssLoadedFront : await urlToBase64(fUrl);
+    if (fUrl || fB64) {
+      const b64 = (fB64 && fB64.startsWith('data:')) ? fB64 : (fUrl ? await urlToBase64(fUrl) : null);
       if (b64) {
         pg.frontBlankBase64 = b64; pg.frontCompositeBase64 = null;
         updateThumb('frontBlank', b64);
-        if (db) dbSave('blanks',{name:`${style}${color?' - '+color:''} Front`,base64:b64,savedAt:Date.now()}).catch(()=>{});
+        if (db) dbSave('blanks',{name:`${style}${color?' – '+color:''} Front`,base64:b64,savedAt:Date.now()}).catch(()=>{});
       }
     }
-    if (bUrl) {
-      const b64 = ssLoadedBack && ssLoadedBack.startsWith('data:') ? ssLoadedBack : await urlToBase64(bUrl);
+    if (bUrl || bB64) {
+      const b64 = (bB64 && bB64.startsWith('data:')) ? bB64 : (bUrl ? await urlToBase64(bUrl) : null);
       if (b64) {
         pg.backBlankBase64 = b64; pg.backCompositeBase64 = null;
         updateThumb('backBlank', b64);
-        if (db) dbSave('blanks',{name:`${style}${color?' - '+color:''} Back`,base64:b64,savedAt:Date.now()}).catch(()=>{});
+        if (db) dbSave('blanks',{name:`${style}${color?' – '+color:''} Back`,base64:b64,savedAt:Date.now()}).catch(()=>{});
       }
-    }
-    if (style) {
-      const pg2 = state.pages[state.currentPage];
-      if (!pg2.title) { document.getElementById('f-title').value = style+(color?' - '+color:''); pg2.title = document.getElementById('f-title').value; }
     }
     closeSsModal();
     scheduleUpdate();
-    toast('Garment images imported ✓', 'success');
+    toast('Garment imported ✓', 'success');
   } catch(e) { toast('Import failed: '+e.message, 'error'); }
   finally { setLoading(false); }
 }
