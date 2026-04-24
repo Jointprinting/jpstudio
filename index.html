@@ -977,8 +977,7 @@ function resetApiPreviews() {
 }
 
 // ─── Manual URL paste tab ─────────────────────────────────────────
-let _manualFront = null;
-let _manualBack  = null;
+// (_manualFront, _manualBack declared above)
 
 async function testManualUrl(side) {
   const inputId = side === 'front' ? 'ss-manual-front-url' : 'ss-manual-back-url';
