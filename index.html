@@ -15,37 +15,42 @@
 
 /* ─── Design tokens ─── warm studio dark palette ───────────── */
 :root{
-  /* backgrounds: slightly warmer than pure blue-black for a studio feel */
-  --bg:#0b0c11;        /* deepest */
-  --s0:#14161f;        /* panel bg */
-  --s1:#1a1d28;        /* raised surface */
-  --s2:#212535;        /* input bg */
-  --s3:#2a2f42;        /* hover */
-  --s4:#343a52;        /* active */
-  --bd:#262a3c;        /* subtle border */
-  --bd2:#363c54;       /* visible border */
+  /* Studio dark — deep navy-blacks with warm undertone, like a professional print studio */
+  --bg:#080910;        /* deepest void */
+  --s0:#0f1119;        /* panel bg — just barely lifted */
+  --s1:#161924;        /* raised surface */
+  --s2:#1c2030;        /* inputs */
+  --s3:#242840;        /* hover surface */
+  --s4:#2e3352;        /* selected/active */
+  --bd:#242740;        /* subtle divider */
+  --bd2:#313658;       /* visible border */
+  --bd3:#404778;       /* focus ring */
 
-  /* accent: same lime but tuned */
-  --ac:#a3e053;
-  --ac2:#4d8720;
-  --ac3:#3a6816;
-  --ac-dim:rgba(163,224,83,.1);
-  --ac-glow:rgba(163,224,83,.28);
+  /* Accent: lime but punchier */
+  --ac:#b8f256;        /* brighter than before — pops on dark */
+  --ac-hover:#ccff70;
+  --ac2:#507c1e;
+  --ac3:#3a5c14;
+  --ac-dim:rgba(184,242,86,.09);
+  --ac-glow:rgba(184,242,86,.30);
+  --ac-text:#0a1204;   /* text on accent bg */
 
-  /* text: pushed brighter for better contrast */
-  --tx:#f2f4fb;        /* primary — near-white */
-  --tx2:#a8b1cc;       /* secondary — was too muted at #8892b0 */
-  --tx3:#6b7499;       /* tertiary — readable labels */
-  --tx4:#424a68;       /* subtle hints only */
+  /* Text — real WCAG-AA contrast ratios */
+  --tx:#f0f3ff;        /* primary: 15:1 contrast on --bg */
+  --tx2:#c2c9e8;       /* secondary: 9:1 — comfortably readable */
+  --tx3:#8b94b8;       /* tertiary: 5:1 — labels & captions */
+  --tx4:#525a7a;       /* quaternary: 3:1 — placeholders only */
 
-  /* status */
-  --red:#ef6363;
-  --red-dim:rgba(239,99,99,.12);
-  --green:#58e59c;
-  --green-dim:rgba(88,229,156,.14);
-  --amber:#f4b838;
+  /* Status */
+  --red:#ff7070;
+  --red-dim:rgba(255,112,112,.13);
+  --green:#5cf2a0;
+  --green-dim:rgba(92,242,160,.13);
+  --amber:#ffc048;
+  --amber-dim:rgba(255,192,72,.13);
+  --blue:#78b8ff;
 
-  /* shapes */
+  /* Shapes */
   --r:6px;
   --rl:10px;
   --rxl:14px;
@@ -56,12 +61,13 @@
   --pl:264px;
   --pr:286px;
   --ease:cubic-bezier(.4,0,.2,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
   --spring:cubic-bezier(.34,1.56,.64,1);
 
-  /* shadows */
-  --shadow-md:0 4px 16px rgba(0,0,0,.4);
-  --shadow-lg:0 16px 48px rgba(0,0,0,.65);
-  --shadow-xl:0 24px 80px rgba(0,0,0,.8);
+  /* Shadows */
+  --shadow-md:0 4px 20px rgba(0,0,0,.5);
+  --shadow-lg:0 12px 48px rgba(0,0,0,.7);
+  --shadow-xl:0 24px 80px rgba(0,0,0,.85);
 }
 
 /* (light mode removed) */
@@ -1641,8 +1647,8 @@ function closeLogoEditor() {
 }
 
 // ── PDF Helpers ───────────────────────────────────────────────────
-function scheduleUpdate(){ clearTimeout(updateTimer); updateTimer=setTimeout(()=>{saveFormToState();renderPdfPreview();},400); }
-function liveUpdate(){     clearTimeout(updateTimer); markPreviewDirty(); updateTimer=setTimeout(()=>{saveFormToState();renderPdfPreview();clearPreviewDirty();},2000); }
+function scheduleUpdate(){ markPreviewDirty(); }
+function liveUpdate(){ markPreviewDirty(); }
 function markPreviewDirty(){  const b=document.getElementById('refresh-btn'); if(b){b.classList.add('dirty');b.title='Changes pending — click to refresh';}}
 function clearPreviewDirty(){ const b=document.getElementById('refresh-btn'); if(b){b.classList.remove('dirty');b.title='Refresh preview';}}
 function manualRefresh(){ clearTimeout(updateTimer); saveFormToState(); renderPdfPreview(); clearPreviewDirty(); }
@@ -1690,97 +1696,124 @@ function buildCaption(print){ const l=[]; if(print.type)l.push('Type: '+print.ty
 
 async function renderTemplate1(pdfDoc,page,pg) {
   const {rgb,StandardFonts}=PDFLib;
-  const mS=30;
+  const mS=32;
   const titleFont  = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont   = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const captFont   = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
   page.drawRectangle({x:0,y:0,width:PAGE_WIDTH,height:PAGE_HEIGHT,color:rgb(1,1,1)});
 
-  // ── Clean white header ──────────────────────────────────────────
-  const HDR=68; // header height
-  // JP Logo — left side, vertically centered in header
+  // ── Header bar — thin accent line at top ──────────────────────
+  const HDR=62;
+  page.drawRectangle({x:0,y:PAGE_HEIGHT-HDR,width:PAGE_WIDTH,height:HDR,color:rgb(.98,.99,.97)});
+  page.drawLine({start:{x:0,y:PAGE_HEIGHT-HDR},end:{x:PAGE_WIDTH,y:PAGE_HEIGHT-HDR},thickness:1,color:rgb(.88,.88,.88)});
+  // Thin accent line at very top
+  page.drawRectangle({x:0,y:PAGE_HEIGHT-3,width:PAGE_WIDTH,height:3,color:rgb(.45,.78,.18)});
+
+  // JP Logo — LEFT, vertically centered, smaller so it doesn't crowd client
   const jpLogoB64=await getJpLogo();
   if(jpLogoB64){
     const ji=await embedImg(pdfDoc,jpLogoB64);
     if(ji){
-      const maxW=150,maxH=HDR-16;
+      const maxW=110, maxH=HDR-22;
       const s=ji.scale(1);
       const sc=Math.min(maxW/s.width,maxH/s.height,1);
-      const lw=s.width*sc,lh=s.height*sc;
+      const lw=s.width*sc, lh=s.height*sc;
       page.drawImage(ji,{x:mS,y:PAGE_HEIGHT-HDR+(HDR-lh)/2,width:lw,height:lh});
     }
   }
-  // Globe icon + website, Insta icon + handle — stacked top-right
+  // Website + Insta — right side
   const globeB64=await getJpGlobe();
   const instaB64=await getJpInsta();
-  const icS=14; // icon size
-  const txtFs=9.5;
-  const txtCol=rgb(.28,.28,.28);
-  const boldTxtCol=rgb(.15,.36,.08);
+  const icS=12, txtFs=9;
   const rightX=PAGE_WIDTH-mS;
-  const line1Y=PAGE_HEIGHT-HDR+(HDR/2)+4;
-  const line2Y=line1Y-icS-3;
+  const line1Y=PAGE_HEIGHT-HDR+(HDR/2)+5;
+  const line2Y=line1Y-icS-4;
   const siteStr='www.jointprinting.com';
   const instaStr='@jointprinting';
   const siteW=boldFont.widthOfTextAtSize(siteStr,txtFs);
-  const instaW=boldFont.widthOfTextAtSize(instaStr,txtFs);
-  // Draw globe icon
-  if(globeB64){const gi=await embedImg(pdfDoc,globeB64);if(gi){page.drawImage(gi,{x:rightX-siteW-icS-5,y:line1Y-1,width:icS,height:icS});}}
-  page.drawText(siteStr,{x:rightX-siteW,y:line1Y,size:txtFs,font:boldFont,color:boldTxtCol});
-  // Draw insta icon
-  if(instaB64){const ii=await embedImg(pdfDoc,instaB64);if(ii){page.drawImage(ii,{x:rightX-instaW-icS-5,y:line2Y-1,width:icS,height:icS});}}
-  page.drawText(instaStr,{x:rightX-instaW,y:line2Y,size:txtFs,font:titleFont,color:txtCol});
+  const instaW=titleFont.widthOfTextAtSize(instaStr,txtFs);
+  if(globeB64){const gi=await embedImg(pdfDoc,globeB64);if(gi)page.drawImage(gi,{x:rightX-siteW-icS-4,y:line1Y,width:icS,height:icS});}
+  page.drawText(siteStr,{x:rightX-siteW,y:line1Y+1,size:txtFs,font:boldFont,color:rgb(.18,.45,.08)});
+  if(instaB64){const ii=await embedImg(pdfDoc,instaB64);if(ii)page.drawImage(ii,{x:rightX-instaW-icS-4,y:line2Y,width:icS,height:icS});}
+  page.drawText(instaStr,{x:rightX-instaW,y:line2Y+1,size:txtFs,font:titleFont,color:rgb(.35,.35,.35)});
 
-  // ── Title block — large and prominent ──────────────────────────
-  const titlePad=14;
-  const tBaseY=PAGE_HEIGHT-HDR-titlePad;
+  // ── Title block — big gap below header ────────────────────────
+  const titleGap=18;
+  const tBaseY=PAGE_HEIGHT-HDR-titleGap;
   if(pg.title){
-    page.drawText(pg.title,{x:mS,y:tBaseY,size:30,font:boldFont,color:rgb(.08,.08,.08)});
+    page.drawText(pg.title,{x:mS,y:tBaseY,size:26,font:boldFont,color:rgb(.08,.08,.08)});
   }
   if(pg.subtitle){
-    page.drawText(pg.subtitle,{x:mS,y:tBaseY-26,size:15,font:titleFont,color:rgb(.40,.40,.40)});
+    page.drawText(pg.subtitle,{x:mS,y:tBaseY-22,size:13,font:titleFont,color:rgb(.40,.40,.40)});
   }
-  // Garment images
-  const titleBottom=tBaseY-(pg.subtitle?26+15:0);
-  const avail=titleBottom-52; // space from below title to above footer
-  const imgH=Math.min(avail*.68,360);
-  const imgW=imgH*.80;
-  const gap=PAGE_WIDTH-mS*2-imgW*2;
+
+  // ── Garment images ────────────────────────────────────────────
+  const titleBottom=tBaseY-(pg.subtitle?22+13:0)-6;
+  const avail=titleBottom-110; // reserve space for specs + footer
+  const imgH=Math.min(avail*.62,320);
+  const imgW=imgH*.82;
+  const gap=(PAGE_WIDTH-mS*2-imgW*2);
   const frontX=mS, backX=mS+imgW+gap;
-  const imgY=titleBottom-20-imgH;
+  const imgY=titleBottom-14-imgH;
   const frontSrc=pg.frontCompositeBase64||pg.frontBlankBase64;
   if(frontSrc){const img=await embedImg(pdfDoc,frontSrc);if(img)page.drawImage(img,{x:frontX,y:imgY,width:imgW,height:imgH});else if(!state.showPrintPreview)drawPlaceholder(page,frontX,imgY,imgW,imgH,'FRONT',boldFont);}
   else if(!state.showPrintPreview)drawPlaceholder(page,frontX,imgY,imgW,imgH,'FRONT',boldFont);
   const backSrc=pg.backCompositeBase64||pg.backBlankBase64;
   if(backSrc){const img=await embedImg(pdfDoc,backSrc);if(img)page.drawImage(img,{x:backX,y:imgY,width:imgW,height:imgH});else if(!state.showPrintPreview)drawPlaceholder(page,backX,imgY,imgW,imgH,'BACK',boldFont);}
   else if(!state.showPrintPreview)drawPlaceholder(page,backX,imgY,imgW,imgH,'BACK',boldFont);
-  // Divider
-  const divY=imgY-12;
-  page.drawLine({start:{x:mS,y:divY},end:{x:PAGE_WIDTH-mS,y:divY},thickness:.5,color:rgb(.85,.85,.85)});
-  // Print specs
-  let specY=divY-16;
-  const capFs=11,capLH=16,capCol=rgb(.22,.22,.22);
-  const fc=buildCaption(pg.printFront),bc=buildCaption(pg.printBack);
-  if(fc.length){for(const s of fc){page.drawText(s,{x:frontX,y:specY,size:capFs,font:captFont,color:capCol});specY-=capLH;}}
-  specY=divY-16;
-  if(bc.length){for(const s of bc){page.drawText(s,{x:backX,y:specY,size:capFs,font:captFont,color:capCol});specY-=capLH;}}
-  // Logo art boxes — larger, centered under each garment column
-  const boxY=Math.min(specY,divY-16-(Math.max(fc.length,bc.length)||0)*capLH)-14;
-  const boxSize=120;
+
+  // ── Divider ───────────────────────────────────────────────────
+  const divY=imgY-14;
+  page.drawLine({start:{x:mS,y:divY},end:{x:PAGE_WIDTH-mS,y:divY},thickness:.6,color:rgb(.82,.82,.82)});
+
+  // ── Print specs — cleaner layout with labels ──────────────────
+  let specY=divY-14;
+  const capFs=10, capLH=15;
+  const labelCol=rgb(.22,.22,.22);
+  const valueCol=rgb(.40,.40,.40);
+  const fc=buildCaption(pg.printFront), bc=buildCaption(pg.printBack);
+
+  // Front specs with "FRONT PRINT" label
+  if(fc.length){
+    page.drawText('FRONT PRINT',{x:frontX,y:specY,size:7,font:boldFont,color:rgb(.55,.70,.40)});
+    let sy=specY-11;
+    for(const s of fc){page.drawText(s,{x:frontX,y:sy,size:capFs,font:captFont,color:labelCol});sy-=capLH;}
+  }
+  // Back specs with "BACK PRINT" label
+  if(bc.length){
+    page.drawText('BACK PRINT',{x:backX,y:specY,size:7,font:boldFont,color:rgb(.55,.70,.40)});
+    let sy=specY-11;
+    for(const s of bc){page.drawText(s,{x:backX,y:sy,size:capFs,font:captFont,color:valueCol});sy-=capLH;}
+  }
+
+  // ── Logo art boxes — centered under each column ───────────────
+  const maxSpecLines=Math.max(fc.length||0,bc.length||0);
+  const logoAreaY=(fc.length||bc.length)? specY-14-(maxSpecLines*capLH)-10 : specY-14;
+  const boxSize=100;
   const frontLogoX=frontX+imgW/2-boxSize/2;
   const backLogoX=backX+imgW/2-boxSize/2;
-  if(pg.frontLogoBase64){const li=await embedImg(pdfDoc,pg.frontLogoBase64);if(li)page.drawImage(li,{x:frontLogoX,y:boxY-boxSize,width:boxSize,height:boxSize});}
-  if(pg.backLogoBase64){const li=await embedImg(pdfDoc,pg.backLogoBase64);if(li)page.drawImage(li,{x:backLogoX,y:boxY-boxSize,width:boxSize,height:boxSize});}
-  // Color swatches
+  if(pg.frontLogoBase64){const li=await embedImg(pdfDoc,pg.frontLogoBase64);if(li)page.drawImage(li,{x:frontLogoX,y:logoAreaY-boxSize,width:boxSize,height:boxSize});}
+  if(pg.backLogoBase64){const li=await embedImg(pdfDoc,pg.backLogoBase64);if(li)page.drawImage(li,{x:backLogoX,y:logoAreaY-boxSize,width:boxSize,height:boxSize});}
+
+  // ── Color swatches — below logo boxes ────────────────────────
   const fColors=normalizeColors(pg.frontColors), bColors=normalizeColors(pg.backColors);
-  drawColorCircles(page,frontX,boxY-boxSize-24,fColors,14,captFont,frontX+imgW);
-  drawColorCircles(page,backX, boxY-boxSize-24,bColors,14,captFont,backX+imgW);
-  // Footer bar — readable text
-  page.drawRectangle({x:0,y:0,width:PAGE_WIDTH,height:40,color:rgb(.06,.06,.06)});
-  page.drawText('INNOVATION IN INK',{x:mS,y:13,size:11,font:boldFont,color:rgb(.55,.70,.42)});
+  const swatchY=(pg.frontLogoBase64||pg.backLogoBase64) ? logoAreaY-boxSize-16 : logoAreaY-16;
+  if(fColors.length){
+    page.drawText('COLORS',{x:frontX,y:swatchY,size:7,font:boldFont,color:rgb(.55,.70,.40)});
+    drawColorCircles(page,frontX,swatchY-14,fColors,13,captFont,frontX+imgW);
+  }
+  if(bColors.length){
+    page.drawText('COLORS',{x:backX,y:swatchY,size:7,font:boldFont,color:rgb(.55,.70,.40)});
+    drawColorCircles(page,backX,swatchY-14,bColors,13,captFont,backX+imgW);
+  }
+
+  // ── Footer ────────────────────────────────────────────────────
+  page.drawRectangle({x:0,y:0,width:PAGE_WIDTH,height:38,color:rgb(.05,.05,.07)});
+  page.drawRectangle({x:0,y:38,width:PAGE_WIDTH,height:1,color:rgb(.15,.15,.18)});
+  page.drawText('INNOVATION IN INK',{x:mS,y:13,size:10,font:boldFont,color:rgb(.50,.73,.28)});
   const mn='Mockup '+(pg.mockupNum||'');
-  const mW=titleFont.widthOfTextAtSize(mn,10);
-  page.drawText(mn,{x:PAGE_WIDTH-mS-mW,y:13,size:10,font:titleFont,color:rgb(.62,.62,.62)});
+  const mW=titleFont.widthOfTextAtSize(mn,9);
+  page.drawText(mn,{x:PAGE_WIDTH-mS-mW,y:13,size:9,font:titleFont,color:rgb(.55,.55,.60)});
 }
 
 async function renderTemplate2(pdfDoc,page,pg) {
@@ -1831,9 +1864,9 @@ async function renderTemplate2(pdfDoc,page,pg) {
 
 function drawColorCircles(page,startX,startY,colors,radius,font,maxX) {
   if (!colors||!colors.length) return;
-  let cx=startX+radius,cy=startY;
   const {rgb}=PDFLib;
-  const step=radius*2.5;
+  const step=radius*2.8;
+  let cx=startX+radius, cy=startY;
   colors.forEach(c => {
     const hex=typeof c==='object'?c.hex:c;
     const name=typeof c==='object'?c.name:'';
@@ -1841,14 +1874,26 @@ function drawColorCircles(page,startX,startY,colors,radius,font,maxX) {
     try{
       const col=hexToRgb(hex);
       const lum=.2126*col.red+.7152*col.green+.0722*col.blue;
-      const bord=hex.replace('#','').toLowerCase()==='ffffff'?rgb(0,0,0):col;
-      page.drawCircle({x:cx,y:cy,size:radius,color:col,borderWidth:.8,borderColor:bord});
-      const hexLabel=hex.replace('#','').toLowerCase();
-      const hfs=7,htw=font.widthOfTextAtSize(hexLabel,hfs);
-      page.drawText(hexLabel,{x:cx-htw/2,y:cy-hfs/2,size:hfs,font,color:lum<.45?rgb(1,1,1):rgb(0,0,0)});
-      if(name&&name.trim()){const nfs=8,ntw=font.widthOfTextAtSize(name.trim(),nfs);page.drawText(name.trim(),{x:cx-ntw/2,y:cy-radius-nfs-1,size:nfs,font,color:rgb(.35,.35,.35)});}
+      const isWhite=hex.replace('#','').toLowerCase()==='ffffff';
+      // Thin border for all circles — white ones get a gray border, others match fill
+      const borderCol=isWhite ? rgb(.7,.7,.7) : col;
+      page.drawCircle({x:cx,y:cy,size:radius,color:col,borderWidth:isWhite?1:.5,borderColor:borderCol});
+      // Hex label inside circle (larger, more readable)
+      const hexLabel='#'+hex.replace('#','').toUpperCase();
+      const hfs=6;
+      const htw=font.widthOfTextAtSize(hexLabel,hfs);
+      page.drawText(hexLabel,{x:cx-htw/2,y:cy-hfs/2,size:hfs,font,color:lum<.5?rgb(.95,.95,.95):rgb(.12,.12,.12)});
+      // Color name below circle — larger and darker
+      if(name&&name.trim()){
+        const nfs=8.5;
+        const ntw=font.widthOfTextAtSize(name.trim(),nfs);
+        page.drawText(name.trim(),{x:cx-ntw/2,y:cy-radius-nfs-3,size:nfs,font,color:rgb(.22,.22,.22)});
+      }
       cx+=step;
-      if(cx+radius>maxX){cy-=radius*2.8+(colors.some(c2=>typeof c2==='object'&&c2.name?.trim())?11:0);cx=startX+radius;}
+      if(cx+radius>maxX){
+        cy-=radius*2+(name?.trim()?14:0)+8;
+        cx=startX+radius;
+      }
     }catch(e){}
   });
 }
